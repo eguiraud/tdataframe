@@ -1,5 +1,5 @@
 #include <list>
-#include "Data.h"
+#include "Data.hpp"
 
 bool prime(unsigned n);
 unsigned sum(unsigned a, unsigned b);
