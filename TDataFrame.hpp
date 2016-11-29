@@ -85,6 +85,10 @@ class TTmpDataFrame {
       // Call helper function to build vector<TTreeReaderValueBase>
       build_tvb(arg_indexes());
    }
+   ~TTmpDataFrame() {
+      for(auto p: tvb)
+         delete p;
+   }
 
    template<class NewFilter>
    auto filter(const BranchList& bl, NewFilter f) -> TTmpDataFrame<NewFilter, decltype(*this)> {
