@@ -7,8 +7,10 @@ int main() {
    TTree t("t", "t");
    fill_tree(t);
    TDataFrame d(t);
+   // define filters
    FilterLambda<double> cutb1 = [](double b1) { return b1 < 5.; };
    FilterLambda<int, double> cutb1b2 = [](int b2, double b1) { return b2 % 2 && b1 < 4.; };
+   // apply filters
    auto entries = d.filter({"b1"}, cutb1)
                    .filter({"b2","b1"}, cutb1b2)
                    .collect_entries();
@@ -16,6 +18,7 @@ int main() {
    auto b1_cut = d.filter({"b1"}, cutb1)
                   .get<double>("b1");
 
+   // print out results
    for(auto x: entries)
       std::cout << "entry " << x << " passed all filters" << std::endl;
 
