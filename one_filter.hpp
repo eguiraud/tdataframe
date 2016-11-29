@@ -5,7 +5,6 @@
 #include <functional>
 #include <vector>
 #include <string>
-#include <utility>
 #include "TTreeReaderValue.h"
 #include "TTreeReader.h"
 using namespace ROOT::Internal;
