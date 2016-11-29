@@ -93,7 +93,7 @@ class TTmpDataFrame {
    EntryList collect_entries() {
       EntryList l;
       while(t.Next())
-         if(apply_filters(arg_indexes()))
+         if(apply_filters())
             l.push_back(t.GetCurrentEntry());   
       return l;
    }
