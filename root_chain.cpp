@@ -12,9 +12,17 @@ int main() {
    auto entries = d.filter({"b1"}, cutb1)
                    .filter({"b2","b1"}, cutb1b2)
                    .collect_entries();
-   
+
+   auto b1_cut = d.filter({"b1"}, cutb1)
+                  .get<double>("b1");
+
    for(auto x: entries)
       std::cout << "entry " << x << " passed all filters" << std::endl;
+
+   std::cout << "\nselected b1 entries" << std::endl;
+   for(auto b1_entry: b1_cut)
+      std::cout << b1_entry << " ";
+   std::cout << std::endl;
 
    return 0;
 }
