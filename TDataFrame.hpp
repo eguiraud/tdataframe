@@ -104,6 +104,17 @@ class TTmpDataFrame {
       return l;
    }
 
+   template<class T>
+   std::list<T> get(std::string branch) {
+      std::list<T> res;
+      TTreeReaderValue<T> v(t, branch.c_str());
+      while(t.Next())
+         if(apply_filters())
+            res.push_back(*v);
+
+      return res;
+   }
+
    private:
    template<int...S>
    void build_tvb(seq<S...>) {
