@@ -58,6 +58,8 @@ class TDataFrame {
    TDataFrame(TTree& _t) : t(&_t) {}
    template<class Filter>
    auto filter(const BranchList& bl, Filter f) -> TTmpDataFrame<Filter, decltype(*this)> {
+      // Every time this TDataFrame is (re)used we want a fresh TTreeReader
+      t.Restart();
       // Create a TTmpDataFrame that contains *this (and the new filter)
       return TTmpDataFrame<Filter, decltype(*this)>(t, bl, f, *this);
    }
