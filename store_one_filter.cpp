@@ -30,19 +30,25 @@ struct gens<0, S...>{
 
 template<class F>
 class A {
+   using arg_types = typename arg_types<F>::types;
+   using arg_indexes = typename gens<std::tuple_size<arg_types>::value>::type;
    public:
    A(TTree& _t, std::vector<std::string> _s, F _f) : t(&_t), s(_s), f(_f) {
-      build_tvb(typename gens<std::tuple_size<typename arg_types<F>::types>::value>::type());
+      build_tvb(arg_indexes());
    }
-//   void apply() {
-//      while(t.Next())
-//         if(applyfilter(t.GetCurrentEntry()))
-//            std::cout << t.GetCurrentEntry() << " OK" << std::endl;
-//   }
+   void apply() {
+      while(t.Next())
+         if(applyfilter(arg_indexes()))
+            std::cout << t.GetCurrentEntry() << " OK" << std::endl;
+   }
    private:
    template<int...S>
    void build_tvb(seq<S...>) {
-      tvb = { new TTreeReaderValue< std::tuple_element<S, typename arg_types<F>::types> >(t, s[S].c_str())... };
+      tvb = { new TTreeReaderValue< typename std::tuple_element<S, arg_types>::type >(t, s[S].c_str())... };
+   }
+   template<int...S>
+   bool applyfilter(seq<S...>) {
+      return f(*(static_cast<TTreeReaderValue<typename std::tuple_element<S, arg_types>::type>*>(tvb[S]))->Get() ...);
    }
    TTreeReader t;
    std::vector<std::string> s;
@@ -56,8 +62,8 @@ int main() {
    TTree t("t", "t");
    fill_tree(t);
    std::function<bool(int, double)> f = [](int b2, double b1) { return b2 % 2 && b1 < 4.; };
-   A<decltype(f)> a(t, {"b1", "b2"}, f);
-//   a.apply();
+   A<decltype(f)> a(t, {"b2", "b1"}, f);
+   a.apply();
    return 0;
 }
 
