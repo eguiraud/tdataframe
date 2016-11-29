@@ -9,6 +9,7 @@
 #include <type_traits> //std::is_same
 #include <stdexcept> //std::runtime_error
 #include "TTree.h"
+#include "TH1F.h"
 #include "TTreeReaderValue.h"
 #include "TTreeReader.h"
 
@@ -180,6 +181,19 @@ class TTmpDataFrame {
       using f_arg_types = typename f_traits<F>::arg_types_tuple;
       using f_arg_indexes = typename gens<std::tuple_size<f_arg_types>::value>::type;
       apply_function(branches, f, f_arg_types(), f_arg_indexes());
+   }
+
+   template<class T>
+   TH1F fillhist(std::string branch, unsigned nbins = 100,
+                 std::string name_suffix = "") {
+      // histogram with automatic binning
+      TH1F h(("h_" + branch).c_str(), branch.c_str(), nbins, 0., 0.);
+      TTreeReaderValue<T> v(t, branch.c_str());
+      while(t.Next())
+         if(apply_filters())
+            h.Fill(*v);
+
+      return h;
    }
 
    private:

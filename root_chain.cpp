@@ -28,6 +28,11 @@ int main() {
       std::cout << b1_entry << " ";
    std::cout << std::endl;
 
+   // `fillhist` action: return a TH1F filled with values of the branch that
+   // passed the filters
+   TH1F hist = d.filter({"b1"}, cutb1).fillhist<double>("b1");
+   std::cout << "\nfilled h " << hist.GetEntries() << " times" << std::endl;
+
    // `foreach` action
    TH1F h("h", "h", 12, -1, 11);
    d.filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
