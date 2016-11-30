@@ -11,12 +11,25 @@
 #include "TTreeReader.h"
 
 /******* meta-utils **********/
+// extract parameter types from a callable object
 template<typename T>
 struct arg_types : public arg_types<decltype(&T::operator())> {};
 
-// convert types of arguments of std::function to corresponding std::tuple
+// lambdas and std::function
 template<typename R, typename T, typename... Args>
 struct arg_types<R(T::*)(Args...) const> {
+   using types = typename std::tuple<Args...>;
+};
+
+// mutable lambdas and functor classes
+template<typename R, typename T, typename... Args>
+struct arg_types<R(T::*)(Args...)> {
+   using types = typename std::tuple<Args...>;
+};
+
+// free functions
+template<typename R, typename... Args>
+struct arg_types<R(*)(Args...)> {
    using types = typename std::tuple<Args...>;
 };
 
@@ -159,4 +172,5 @@ class TTmpDataFrame {
 Wish list:
 - build TTreeReaderValues right before looping over TTree
 - only build TTreeReaderValues once per branch
+- static check that filters return a bool
 */
