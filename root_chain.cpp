@@ -8,8 +8,8 @@ int main() {
    fill_tree(t);
    TDataFrame d(t);
    // define filters
-   FilterLambda<double> cutb1 = [](double b1) { return b1 < 5.; };
-   FilterLambda<int, double> cutb1b2 = [](int b2, double b1) { return b2 % 2 && b1 < 4.; };
+   auto cutb1 = [](double b1) { return b1 < 5.; };
+   auto cutb1b2 = [](int b2, double b1) { return b2 % 2 && b1 < 4.; };
    // apply filters
    auto entries = d.filter({"b1"}, cutb1)
                    .filter({"b2","b1"}, cutb1b2)

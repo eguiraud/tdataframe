@@ -11,14 +11,12 @@
 #include "TTreeReader.h"
 
 /******* meta-utils **********/
-template<class T>
-struct arg_types {
-   static_assert(sizeof(T) == -1, "this line should never be compiled");
-};
+template<typename T>
+struct arg_types : public arg_types<decltype(&T::operator())> {};
 
 // convert types of arguments of std::function to corresponding std::tuple
-template<class T, class... Args>
-struct arg_types<std::function<T(Args...)>> {
+template<typename R, typename T, typename... Args>
+struct arg_types<R(T::*)(Args...) const> {
    using types = typename std::tuple<Args...>;
 };
 
@@ -42,8 +40,6 @@ struct gens<0, S...>{
 using BranchList = std::vector<std::string>;
 using EntryList = std::list<unsigned>;
 using TVB = ROOT::Internal::TTreeReaderValueBase;
-template<class... T>
-using FilterLambda = std::function<bool(T...)>; // use as FilterLambda<int,int>
 
 
 // forward declaration (needed by TDataFrame)
