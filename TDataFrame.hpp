@@ -18,19 +18,19 @@ struct arg_types : public arg_types<decltype(&T::operator())> {};
 // lambdas and std::function
 template<typename R, typename T, typename... Args>
 struct arg_types<R(T::*)(Args...) const> {
-   using types = typename std::tuple<Args...>;
+   using types_tuple = typename std::tuple<Args...>;
 };
 
 // mutable lambdas and functor classes
 template<typename R, typename T, typename... Args>
 struct arg_types<R(T::*)(Args...)> {
-   using types = typename std::tuple<Args...>;
+   using types_tuple = typename std::tuple<Args...>;
 };
 
 // free functions
 template<typename R, typename... Args>
 struct arg_types<R(*)(Args...)> {
-   using types = typename std::tuple<Args...>;
+   using types_tuple = typename std::tuple<Args...>;
 };
 
 
@@ -82,18 +82,31 @@ class TDataFrame {
 };
 
 
+template<int... S, typename... arg_types>
+std::vector<TVB*> build_tvb(TTreeReader& t, const BranchList& bl, std::tuple<arg_types...>, seq<S...>) {
+   // Build vector of pointers to TTreeReaderValueBase.
+   // tvb[i] is a TTreeReaderValue specialized for the i-th arg_type
+   // S must be a sequence of sizeof...(arg_types) integers
+   // arg_types and S are expanded simultaneously by "..."
+   std::vector<TVB*> tvb{ new TTreeReaderValue <arg_types>(t, bl.at(S).c_str())... };
+   return tvb;
+}
+
+
 template<class Filter, class PrevData>
 class TTmpDataFrame {
    template<class A, class B> friend class TTmpDataFrame;
-   using arg_types = typename arg_types<Filter>::types;
-   using arg_indexes = typename gens<std::tuple_size<arg_types>::value>::type;
+   template<class A, class B> friend class TTmpDataProcessor;
+   using filter_types = typename arg_types<Filter>::types_tuple;
+   using filter_ind = typename gens<std::tuple_size<filter_types>::value>::type;
 
    public:
    TTmpDataFrame(TTreeReader& _t, const BranchList& _bl, Filter _f,
                  PrevData& _pd) : t(_t), bl(_bl), f(_f), pd(_pd) {
       // Call helper function to build vector<TTreeReaderValueBase>
-      build_tvb(arg_indexes());
+      tvb = build_tvb(t, bl, filter_types(), filter_ind());
    }
+
    ~TTmpDataFrame() {
       for(auto p: tvb)
          delete p;
@@ -125,38 +138,22 @@ class TTmpDataFrame {
    }
 
    private:
-   template<int...S>
-   void build_tvb(seq<S...>) {
-      // Build vector of pointers to TTreeReaderValueBase. Each element points
-      // to a TTreeReaderValue that corresponds to a different argument of
-      // the filter lambda
-      tvb = { new TTreeReaderValue
-                  < typename std::tuple_element<S, arg_types>::type >
-                  (t, bl[S].c_str())
-              ... // expand over the values of the parameter pack S
-            };
+   bool apply_filters() {
+      return apply_filters(filter_types(), filter_ind());
    }
 
-   template<int...S>
-   bool apply_filters(seq<S...>) {
+   template<int... S, typename... types>
+   bool apply_filters(std::tuple<types...>, seq<S...>) {
       // Recursive call to all previous filters
       if(!pd.apply_filters())
          return false;
 
-      // Call our filter
-      // The argument takes each pointer in tvb, casts it to a pointer to the
-      // correct specialization of TTreeReaderValue, and gets its content.
-      // N.B. S expands to a sequence of integers 0..N-1 where N is the number
-      // of arguments taken by f.
-      return f(* (static_cast< TTreeReaderValue< typename std::tuple_element< S, arg_types >::type > * >
-                    (tvb[S])
-                 )->Get()
-               ... // expand over the values of the parameter pack S
-              );
-   }
-
-   bool apply_filters() {
-      return apply_filters(arg_indexes());
+      // Apply our filter
+      // Take each pointer in tvb, cast it to a pointer to the
+      // correct specialization of TTreeReaderValue, and get its content.
+      // S expands to a sequence of integers 0 to sizeof...(types)-1
+      // S and types are expanded simultaneously by "..."
+      return f(*(static_cast<TTreeReaderValue<types>*>(tvb[S]))->Get() ...);
    }
 
    TTreeReader& t;
