@@ -122,7 +122,7 @@ class TTmpDataFrame {
       EntryList l;
       while(t.Next())
          if(apply_filters())
-            l.push_back(t.GetCurrentEntry());   
+            l.push_back(t.GetCurrentEntry());
       return l;
    }
 
