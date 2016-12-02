@@ -137,6 +137,13 @@ class TTmpDataFrame {
       return res;
    }
 
+   template<class F>
+   void foreach(const BranchList& branches, F f) {
+      using f_arg_types = typename arg_types<F>::types_tuple;
+      using f_arg_indexes = typename gens<std::tuple_size<f_arg_types>::value>::type;
+      apply_function(branches, f, f_arg_types(), f_arg_indexes());
+   }
+
    private:
    bool apply_filters() {
       return apply_filters(filter_types(), filter_ind());
@@ -154,6 +161,17 @@ class TTmpDataFrame {
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
       return f(*(static_cast<TTreeReaderValue<types>*>(tvb[S]))->Get() ...);
+   }
+
+   template<typename F, int... S, typename... types>
+   void apply_function(const BranchList& branches, F f, std::tuple<types...> types_tuple, seq<S...> intseq) {
+      auto f_tvb = build_tvb(t, branches, types_tuple, intseq);
+      while(t.Next()) {
+         if(apply_filters())
+            f(*(static_cast<TTreeReaderValue<types>*>(f_tvb[S]))->Get()...);
+      }
+      for(auto p: f_tvb)
+         delete p;
    }
 
    TTreeReader& t;
