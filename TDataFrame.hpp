@@ -7,6 +7,7 @@
 #include <functional>
 #include <string>
 #include <type_traits> //std::is_same
+#include <stdexcept> //std::runtime_error
 #include "TTree.h"
 #include "TTreeReaderValue.h"
 #include "TTreeReader.h"
@@ -59,6 +60,30 @@ using EntryList = std::list<unsigned>;
 using TVB = ROOT::Internal::TTreeReaderValueBase;
 
 
+template<typename Filter>
+bool check_filter(Filter f, const BranchList& bl, const BranchList& def_bl) {
+   using filter_ret_t = typename f_traits<Filter>::ret_t;
+   static_assert(std::is_same<filter_ret_t, bool>::value,
+                 "filter functions must return a bool");
+   using filter_args_tuple = typename f_traits<Filter>::arg_types_tuple;
+   auto n_args = std::tuple_size<filter_args_tuple>::value;
+
+   bool use_def_bl = false;
+   if(n_args != bl.size()) {
+      if(bl.size() == 0 && n_args == def_bl.size()) {
+         use_def_bl = true;
+      } else {
+         auto msg = "mismatch between number of filter arguments (" \
+                     + std::to_string(n_args) + ") and number of branches (" \
+                     + std::to_string(bl.size()?:def_bl.size()) + ")";
+         throw std::runtime_error(msg);
+      }
+   }
+
+   return use_def_bl;
+}
+
+
 // forward declaration (needed by TDataFrame)
 template<class Filter, class PrevData>
 class TTmpDataFrame;
@@ -68,17 +93,16 @@ class TDataFrame {
    template<class A, class B> friend class TTmpDataFrame;
 
    public:
-   TDataFrame(TTree& _t) : t(&_t) {}
-   template<class Filter>
-   auto filter(const BranchList& bl, Filter f) -> TTmpDataFrame<Filter, decltype(*this)> {
-      using filter_ret_t = typename f_traits<Filter>::ret_t;
-      static_assert(std::is_same<filter_ret_t, bool>::value,
-                    "filter functions must return a bool");
+   TDataFrame(TTree& _t, const BranchList& _bl = {}) : t(&_t), def_bl(_bl) {}
 
+   template<class Filter>
+   auto filter(Filter f, const BranchList& bl = {}) -> TTmpDataFrame<Filter, decltype(*this)> {
+      bool use_def_bl = check_filter(f, bl, def_bl);
       // Every time this TDataFrame is (re)used we want a fresh TTreeReader
       t.Restart();
       // Create a TTmpDataFrame that contains *this (and the new filter)
-      return TTmpDataFrame<Filter, decltype(*this)>(t, bl, f, *this);
+      const BranchList& actual_bl = use_def_bl ? def_bl : bl;
+      return TTmpDataFrame<Filter, decltype(*this)>(t, actual_bl, f, *this);
    }
 
    private:
@@ -88,6 +112,8 @@ class TDataFrame {
    }
 
    TTreeReader t;
+   //! the branchlist to fall back to if none is specified in filters and actions
+   const BranchList def_bl;
 };
 
 
@@ -111,7 +137,7 @@ class TTmpDataFrame {
 
    public:
    TTmpDataFrame(TTreeReader& _t, const BranchList& _bl, Filter _f,
-                 PrevData& _pd) : t(_t), bl(_bl), f(_f), pd(_pd) {
+                 PrevData& _pd) : t(_t), bl(_bl), f(_f), pd(_pd), def_bl(_pd.def_bl) {
       // Call helper function to build vector<TTreeReaderValueBase>
       tvb = build_tvb(t, bl, filter_types(), filter_ind());
    }
@@ -122,13 +148,12 @@ class TTmpDataFrame {
    }
 
    template<class NewFilter>
-   auto filter(const BranchList& bl, NewFilter f) -> TTmpDataFrame<NewFilter, decltype(*this)> {
-      using filter_ret_t = typename f_traits<Filter>::ret_t;
-      static_assert(std::is_same<filter_ret_t, bool>::value,
-                    "filter functions must return a bool");
+   auto filter(NewFilter f, const BranchList& bl = {}) -> TTmpDataFrame<NewFilter, decltype(*this)> {
+      bool use_def_bl = check_filter(f, bl, def_bl);
+      const BranchList& actual_bl = use_def_bl ? def_bl : bl;
 
       // Create a TTmpDataFrame that contains *this (and the new filter)
-      return TTmpDataFrame<NewFilter, decltype(*this)>(t, bl, f, *this);
+      return TTmpDataFrame<NewFilter, decltype(*this)>(t, actual_bl, f, *this);
    }
 
    EntryList collect_entries() {
@@ -192,6 +217,7 @@ class TTmpDataFrame {
    const BranchList& bl;
    Filter f;
    PrevData pd;
+   const BranchList& def_bl;
 };
 
 #endif // TDATAFRAME

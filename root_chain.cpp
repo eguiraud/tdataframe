@@ -13,15 +13,15 @@ int main() {
    auto cutb1b2 = [](int b2, double b1) { return b2 % 2 && b1 < 4.; };
 
    // `collect_entries` action: retrieve all entries that passed filters
-   std::list<unsigned> entries = d.filter({"b1"}, cutb1)
-                                  .filter({"b2","b1"}, cutb1b2)
+   std::list<unsigned> entries = d.filter(cutb1, {"b1"})
+                                  .filter(cutb1b2, {"b2","b1"})
                                   .collect_entries();
 
    for(auto x: entries)
       std::cout << "entry " << x << " passed all filters" << std::endl;
 
    // `get` action: retrieve all values of the branch that passed filters
-   std::list<double> b1_cut = d.filter({"b1"}, cutb1).get<double>("b1");
+   std::list<double> b1_cut = d.filter(cutb1, {"b1"}).get<double>("b1");
 
    std::cout << "\nselected b1 entries" << std::endl;
    for(auto b1_entry: b1_cut)
@@ -30,10 +30,17 @@ int main() {
 
    // `foreach` action
    TH1F h("h", "h", 12, -1, 11);
-   d.filter({"b2"}, [](int b2) { return b2 % 2 == 0; })
+   d.filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
     .foreach({"b1"}, [&h](double b1) { h.Fill(b1); });
 
    std::cout << "\nh filled with " << h.GetEntries() << " entries" << std::endl;
+
+   // use default branches
+   TDataFrame d2(t, {"b1"});
+   auto entries_bis = d2.filter(cutb1).filter(cutb1b2, {"b2", "b1"}).collect_entries();
+   std::cout << "\ndefault branches: "
+             << (entries == entries_bis ? "ok" : "ko")
+             << std::endl;
 
    return 0;
 }
