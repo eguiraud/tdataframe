@@ -78,6 +78,7 @@ class TDataFrame {
       // Dummy call (end of recursive chain of calls)
       return true;
    }
+
    TTreeReader t;
 };
 
@@ -182,10 +183,3 @@ class TTmpDataFrame {
 };
 
 #endif // TDATAFRAME
-
-/*
-Wish list:
-- build TTreeReaderValues right before looping over TTree
-- only build TTreeReaderValues once per branch
-- static check that filters return a bool
-*/
