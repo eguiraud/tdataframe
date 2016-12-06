@@ -6,6 +6,7 @@
 #include <tuple>
 #include <functional>
 #include <string>
+#include <type_traits> //std::is_same
 #include "TTree.h"
 #include "TTreeReaderValue.h"
 #include "TTreeReader.h"
@@ -13,24 +14,27 @@
 /******* meta-utils **********/
 // extract parameter types from a callable object
 template<typename T>
-struct arg_types : public arg_types<decltype(&T::operator())> {};
+struct f_traits : public f_traits<decltype(&T::operator())> {};
 
 // lambdas and std::function
 template<typename R, typename T, typename... Args>
-struct arg_types<R(T::*)(Args...) const> {
-   using types_tuple = typename std::tuple<Args...>;
+struct f_traits<R(T::*)(Args...) const> {
+   using arg_types_tuple = typename std::tuple<Args...>;
+   using ret_t = R;
 };
 
 // mutable lambdas and functor classes
 template<typename R, typename T, typename... Args>
-struct arg_types<R(T::*)(Args...)> {
-   using types_tuple = typename std::tuple<Args...>;
+struct f_traits<R(T::*)(Args...)> {
+   using arg_types_tuple = typename std::tuple<Args...>;
+   using ret_t = R;
 };
 
 // free functions
 template<typename R, typename... Args>
-struct arg_types<R(*)(Args...)> {
-   using types_tuple = typename std::tuple<Args...>;
+struct f_traits<R(*)(Args...)> {
+   using arg_types_tuple = typename std::tuple<Args...>;
+   using ret_t = R;
 };
 
 
@@ -67,6 +71,10 @@ class TDataFrame {
    TDataFrame(TTree& _t) : t(&_t) {}
    template<class Filter>
    auto filter(const BranchList& bl, Filter f) -> TTmpDataFrame<Filter, decltype(*this)> {
+      using filter_ret_t = typename f_traits<Filter>::ret_t;
+      static_assert(std::is_same<filter_ret_t, bool>::value,
+                    "filter functions must return a bool");
+
       // Every time this TDataFrame is (re)used we want a fresh TTreeReader
       t.Restart();
       // Create a TTmpDataFrame that contains *this (and the new filter)
@@ -98,7 +106,7 @@ template<class Filter, class PrevData>
 class TTmpDataFrame {
    template<class A, class B> friend class TTmpDataFrame;
    template<class A, class B> friend class TTmpDataProcessor;
-   using filter_types = typename arg_types<Filter>::types_tuple;
+   using filter_types = typename f_traits<Filter>::arg_types_tuple;
    using filter_ind = typename gens<std::tuple_size<filter_types>::value>::type;
 
    public:
@@ -115,6 +123,10 @@ class TTmpDataFrame {
 
    template<class NewFilter>
    auto filter(const BranchList& bl, NewFilter f) -> TTmpDataFrame<NewFilter, decltype(*this)> {
+      using filter_ret_t = typename f_traits<Filter>::ret_t;
+      static_assert(std::is_same<filter_ret_t, bool>::value,
+                    "filter functions must return a bool");
+
       // Create a TTmpDataFrame that contains *this (and the new filter)
       return TTmpDataFrame<NewFilter, decltype(*this)>(t, bl, f, *this);
    }
@@ -140,7 +152,7 @@ class TTmpDataFrame {
 
    template<class F>
    void foreach(const BranchList& branches, F f) {
-      using f_arg_types = typename arg_types<F>::types_tuple;
+      using f_arg_types = typename f_traits<F>::arg_types_tuple;
       using f_arg_indexes = typename gens<std::tuple_size<f_arg_types>::value>::type;
       apply_function(branches, f, f_arg_types(), f_arg_indexes());
    }

@@ -30,8 +30,10 @@ int main() {
 
    // `foreach` action
    TH1F h("h", "h", 12, -1, 11);
-   d.filter({"b2"}, [](int b2) { return b2 % 2; })
+   d.filter({"b2"}, [](int b2) { return b2 % 2 == 0; })
     .foreach({"b1"}, [&h](double b1) { h.Fill(b1); });
+
+   std::cout << "\nh filled with " << h.GetEntries() << " entries" << std::endl;
 
    return 0;
 }
