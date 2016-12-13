@@ -30,7 +30,7 @@ int main() {
 
    // `fillhist` action: return a TH1F filled with values of the branch that
    // passed the filters
-   TH1F hist = d.filter({"b1"}, cutb1).fillhist<double>("b1");
+   TH1F hist = d.filter(cutb1, {"b1"}).fillhist<double>("b1");
    std::cout << "\nfilled h " << hist.GetEntries() << " times" << std::endl;
 
    // `foreach` action
