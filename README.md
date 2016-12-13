@@ -23,7 +23,7 @@ Non-exhaustive list of actions (easy to implement more):
     * `fillhist("branch")`: return a TH1F filled with the values of "branch"
     * `foreach(<function>, {"branch1", "branch2"})`: apply `function` to "branch1" and "branch2" 
 
-See [below](#examples) for some examples.
+See [below](#example-code) for some examples.
 
 ## Perks
 * lazy evaluation: filters are only applied when an action is performed. This allows for parallelisation and other optimisations to be performed
@@ -49,7 +49,6 @@ See [below](#examples) for some examples.
 * exception-throwing runtime sanity checks (e.g. number of branches == number of lambda arguments)
 * `TDataFrame` can do everything a TSelector or a raw loop over a TTreeReader can
 
-[examples](#examples)
 ## Example code
 This should compile against ROOT's master (or ROOT v6.08.2).
 It will not run because you don't have my test tree, I'm just putting this here as an example snippet.
