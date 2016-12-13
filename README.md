@@ -96,4 +96,4 @@ int main() {
 
 ## Project files description
 * `TDataFrame.{h,c}pp`: functional chain implementation
-* `root_chain.cpp`: example usage/functionality testing
+* `example.cpp`: example usage/functionality testing
