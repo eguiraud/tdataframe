@@ -86,7 +86,8 @@ int main() {
     .foreach({"x"}, [&th_h](double x) { th_h->Fill(x); }); // multi-thread filling is performed             
    th_h.Merge();                                      
                                                                                 
-   // default branch specified in TDataFrame ctor, so no need to pass it to `filter` unless we specify a different one
+   // default branch specified in TDataFrame ctor, so no need to pass it to `filter`
+   // unless we specify a different one
    TDataFrame d2("mytree", &file, {"x"});                                      
    std::list<unsigned> entries2 = d2.filter(cutx).filter(cutxy, {"x", "y"}).collect_entries();                                                                                                 
    return 0;                                                                    
@@ -95,5 +96,5 @@ int main() {
 ```
 
 ## Project files description
-* `TDataFrame.{h,c}pp`: functional chain implementation
+* `TDataFrame.hpp`: functional chain implementation
 * `example.cpp`: example usage/functionality testing
