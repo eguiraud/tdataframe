@@ -57,7 +57,7 @@ int root_chain() {
    // histogram
    TH1F h("h", "h", 12, -1, 11);
    d.filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
-    .foreach({"b1"}, [&h](double b1) { h.Fill(b1); });
+    .foreach([&h](double b1) { h.Fill(b1); }, {"b1"});
 
    std::cout << "\nh filled with " << h.GetEntries() << " entries" << std::endl;
 

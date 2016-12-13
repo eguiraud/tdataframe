@@ -177,7 +177,7 @@ class TTmpDataFrame {
    }
 
    template<class F>
-   void foreach(const BranchList& branches, F f) {
+   void foreach(F f, const BranchList& branches) {
       using f_arg_types = typename f_traits<F>::arg_types_tuple;
       using f_arg_indexes = typename gens<std::tuple_size<f_arg_types>::value>::type;
       apply_function(branches, f, f_arg_types(), f_arg_indexes());
