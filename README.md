@@ -10,6 +10,13 @@ d.filter(neg, {"theta"}).foreach(fill, {"pt_x", "pt_y"});
 ```
 No need for TSelectors or TTreeReader loops anymore. As a huge plus, parallelisation, caching and other optimisations are performed transparently or requiring only minimal action on the user's part.
 
+## Contents
+* [Quick rundown](#quick-rundown)
+* [Run example on lxplus7 in 5 commands](#run-example-on-lxplus7-in-5-commands)
+* [Perks](#perks)
+* [Example code](#example-code)
+* [Project files description](#project-files-description)
+
 ## Quick rundown
 1. **Build the dataframe**
 `TDataFrame` represents the entry point to your dataset. 
@@ -24,6 +31,15 @@ Non-exhaustive list of actions (easy to implement more):
     * `foreach(<function>, {"branch1", "branch2"})`: apply `function` to "branch1" and "branch2" 
 
 See [below](#example-code) for some examples.
+
+## Run example on lxplus7 in 5 commands
+```bash
+ssh lxplus7
+. /cvmfs/sft.cern.ch/lcg/app/releases/ROOT/6.08.02/x86_64-centos7-gcc48-opt/root/bin/thisroot.sh
+git clone https://github.com/bluehood/tdataframe
+cd tdataframe
+root -b example.cpp
+```
 
 ## Perks
 * lazy evaluation: filters are only applied when an action is performed. This allows for parallelisation and other optimisations to be performed
