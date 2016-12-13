@@ -97,9 +97,9 @@ int main() {
                                                                  
    // parallel `foreach`: same thing but in multi-threading                     
    ROOT::EnableImplicitMT();                                                   
-   ROOT::TThreadedObject<TH1F> th_h("h", "h", 10, 0, 1);   // thread-safe TH1F                 
-   d.filter([](int x) { return x % 2 == 0; }, {"x"})       // parallel loop over entries     
-    .foreach({"x"}, [&th_h](double x) { th_h->Fill(x); }); // multi-thread filling is performed             
+   ROOT::TThreadedObject<TH1F> th_h("h", "h", 10, 0, 1);   // thread-safe TH1F                
+   d.filter([](int x) { return x % 2 == 0; }, {"x"})       // parallel loop over entries  
+    .foreach({"x"}, [&th_h](double x) { th_h->Fill(x); }); // multi-thread filling is performed
    th_h.Merge();                                      
                                                                                 
    // default branch specified in TDataFrame ctor, so no need to pass it to `filter`
