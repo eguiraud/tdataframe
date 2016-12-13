@@ -50,7 +50,7 @@ root -b example.cpp
    ROOT::TThreadedObject<TH1F> h("h", "h", 100, 0, 1); // thread-safe TH1F
    TDataFrame d(tree_name, file_ptr, {"default_branch"});
    d.filter([]() { return true; }, {})
-    .foreach([&h](double def_b) { th_h->Fill(def_b); }); // action executed in parallel over tree entries
+    .foreach([&h](double def_b) { th_h->Fill(def_b); }); // parallel over tree entries
    th_h.Merge();
 ```
 * does not require any change to ROOT
@@ -85,7 +85,7 @@ int main() {
    auto cutxy = [](int x, double y) { return x % 2 && y < 4.; };          
                                                                                  
    // `get` action         
-   std::list<double> x_cut = d.filter(cutx, {"x"}).get<double>("x");                                                    
+   std::list<double> x_cut = d.filter(cutx, {"x"}).get<double>("x");
                                                                                 
    // `fillhist` action                                                
    TH1F hist = d.filter(cutx, {"x"}).fillhist("x");    
@@ -98,14 +98,15 @@ int main() {
    // parallel `foreach`: same thing but in multi-threading                     
    ROOT::EnableImplicitMT();                                                   
    ROOT::TThreadedObject<TH1F> th_h("h", "h", 10, 0, 1);   // thread-safe TH1F                 
-   d.filter([](int x) { return x % 2 == 0; }, {"x"})       // parallel loop over entries                       
+   d.filter([](int x) { return x % 2 == 0; }, {"x"})       // parallel loop over entries     
     .foreach({"x"}, [&th_h](double x) { th_h->Fill(x); }); // multi-thread filling is performed             
    th_h.Merge();                                      
                                                                                 
    // default branch specified in TDataFrame ctor, so no need to pass it to `filter`
    // unless we specify a different one
    TDataFrame d2("mytree", &file, {"x"});                                      
-   std::list<unsigned> entries2 = d2.filter(cutx).filter(cutxy, {"x", "y"}).collect_entries();                                                                                                 
+   std::list<unsigned> entries2 = d2.filter(cutx).filter(cutxy, {"x", "y"}).collect_entries();
+   
    return 0;                                                                    
 }               
 
