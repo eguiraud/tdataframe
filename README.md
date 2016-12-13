@@ -10,6 +10,13 @@ d.filter(neg, {"theta"}).foreach(fill, {"pt_x", "pt_y"});
 ```
 No need for TSelectors or TTreeReader loops anymore. As a huge plus, parallelisation, caching and other optimisations are performed transparently or requiring only minimal action on the user's part.
 
+## Contents
+* [Quick rundown](#quick-rundown)
+* [Run example on lxplus7 in 5 commands](#run-example-on-lxplus7-in-5-commands)
+* [Perks](#perks)
+* [Example code](#example-code)
+* [Project files description](#project-files-description)
+
 ## Quick rundown
 1. **Build the dataframe**
 `TDataFrame` represents the entry point to your dataset. 
@@ -25,6 +32,15 @@ Non-exhaustive list of actions (easy to implement more):
 
 See [below](#example-code) for some examples.
 
+## Run example on lxplus7 in 5 commands
+```bash
+ssh lxplus7
+. /cvmfs/sft.cern.ch/lcg/app/releases/ROOT/6.08.02/x86_64-centos7-gcc48-opt/root/bin/thisroot.sh
+git clone https://github.com/bluehood/tdataframe
+cd tdataframe
+root -b example.cpp
+```
+
 ## Perks
 * lazy evaluation: filters are only applied when an action is performed. This allows for parallelisation and other optimisations to be performed
 * a default set of branches can be specified when constructing a `TDataFrame`. It will be used as fallback when a set specific to the filter/action is not specified
@@ -34,7 +50,7 @@ See [below](#example-code) for some examples.
    ROOT::TThreadedObject<TH1F> h("h", "h", 100, 0, 1); // thread-safe TH1F
    TDataFrame d(tree_name, file_ptr, {"default_branch"});
    d.filter([]() { return true; }, {})
-    .foreach([&h](double def_b) { th_h->Fill(def_b); }); // action executed in parallel over tree entries
+    .foreach([&h](double def_b) { th_h->Fill(def_b); }); // parallel over tree entries
    th_h.Merge();
 ```
 * does not require any change to ROOT
@@ -69,7 +85,7 @@ int main() {
    auto cutxy = [](int x, double y) { return x % 2 && y < 4.; };          
                                                                                  
    // `get` action         
-   std::list<double> x_cut = d.filter(cutx, {"x"}).get<double>("x");                                                    
+   std::list<double> x_cut = d.filter(cutx, {"x"}).get<double>("x");
                                                                                 
    // `fillhist` action                                                
    TH1F hist = d.filter(cutx, {"x"}).fillhist("x");    
@@ -81,15 +97,16 @@ int main() {
                                                                  
    // parallel `foreach`: same thing but in multi-threading                     
    ROOT::EnableImplicitMT();                                                   
-   ROOT::TThreadedObject<TH1F> th_h("h", "h", 10, 0, 1);   // thread-safe TH1F                 
-   d.filter([](int x) { return x % 2 == 0; }, {"x"})       // parallel loop over entries                       
-    .foreach({"x"}, [&th_h](double x) { th_h->Fill(x); }); // multi-thread filling is performed             
+   ROOT::TThreadedObject<TH1F> th_h("h", "h", 10, 0, 1);   // thread-safe TH1F                
+   d.filter([](int x) { return x % 2 == 0; }, {"x"})       // parallel loop over entries  
+    .foreach({"x"}, [&th_h](double x) { th_h->Fill(x); }); // multi-thread filling is performed
    th_h.Merge();                                      
                                                                                 
    // default branch specified in TDataFrame ctor, so no need to pass it to `filter`
    // unless we specify a different one
    TDataFrame d2("mytree", &file, {"x"});                                      
-   std::list<unsigned> entries2 = d2.filter(cutx).filter(cutxy, {"x", "y"}).collect_entries();                                                                                                 
+   std::list<unsigned> entries2 = d2.filter(cutx).filter(cutxy, {"x", "y"}).collect_entries();
+   
    return 0;                                                                    
 }               
 
