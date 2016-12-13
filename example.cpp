@@ -1,4 +1,4 @@
-// Compile with  g++ -o root_chain root_chain.cpp `root-config --cflags --libs` -lTreePlayer
+// Compile with  g++ -o example example.cpp `root-config --cflags --libs` -lTreePlayer
 #include "TTree.h"
 #include "TFile.h"
 #include "TDataFrame.hpp"
@@ -7,7 +7,7 @@
 // A simple function to fill a test tree
 void fill_tree(const char*, const char*);
 
-int root_chain() {
+int example() {
 
    // We prepare an input tree for this example --------------------------------
    auto fileName = "myfile.root";
@@ -91,6 +91,6 @@ void fill_tree(const char* filename, const char* treeName) {
 }
 
 int main(){
-   return root_chain();
+   return example();
 }
 
