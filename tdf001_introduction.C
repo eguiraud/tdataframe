@@ -89,7 +89,7 @@ int tdf001_introduction() {
    std::cout << "\nfilled h " << hist.GetEntries() << " times" << std::endl;
 
    // ### `foreach` action
-   // The most generic action of all: am operation is applied to all entries. 
+   // The most generic action of all: an operation is applied to all entries. 
    // In this case we fill a histogram. In some sense this is a violation of a 
    // purely functional paradigm - C++ allows to do that.
    TH1F h("h", "h", 12, -1, 11);
