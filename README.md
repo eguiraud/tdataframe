@@ -1,4 +1,9 @@
 # Functional chains for ROOT data analyses
+<a href="https://scan.coverity.com/projects/bluehood-tdataframe">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/11179/badge.svg"/>
+</a>
+
 The main aim of this project is to allow ROOT users to easily operate on branches of a TTree by using functional chains.
 This makes it possible to process trees this way:
 ```c++
@@ -11,7 +16,8 @@ d.filter(neg, {"theta"}).foreach(fill, {"pt_x", "pt_y"});
 No need for TSelectors or TTreeReader loops anymore. As a huge plus, parallelisation, caching and other optimisations are performed transparently or requiring only minimal action on the user's part.
 
 Try this interactively in your browser now:
-<a href="https://cern.ch/swanserver/cgi-bin/go/?projurl=https://github.com/bluehood/tdataframe.git"> <img src="https://swanserver.web.cern.ch/swanserver/images/badge_swan_white_150.png" /></a>
+<a href="https://cern.ch/swanserver/cgi-bin/go/?projurl=https://github.com/bluehood/tdataframe.git">
+<img src="https://swanserver.web.cern.ch/swanserver/images/badge_swan_white_150.png" /></a>
 
 ## Contents
 * [Quick rundown](#quick-rundown)
