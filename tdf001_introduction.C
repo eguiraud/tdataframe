@@ -86,7 +86,11 @@ int tdf001_introduction() {
    // The `fillhist` action allows to fill an histogram. It returns a TH1F filled 
    // with values of the branch that passed the filters.
    auto hist = d.filter(cutb1, {"b1"}).fillhist<double>("b1");
-   std::cout << "\nfilled h " << hist.GetEntries() << " times" << std::endl;
+   std::cout << "\nfilled h " << hist.GetEntries() << " times, mean: " << hist.GetMean() << std::endl;
+
+   TH1D hist2("hist2", "hist2", 200, 0, 20);
+   d.filter(cutb1, {"b1"}).fillhist<double>("b1", hist2);
+   std::cout << "\nfilled h2 " << hist2.GetEntries() << " times, mean: " << hist2.GetMean() << std::endl;
 
    // ### `foreach` action
    // The most generic action of all: an operation is applied to all entries. 
