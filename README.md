@@ -123,4 +123,7 @@ int main() {
 
 ## Project files description
 * `TDataFrame.hpp`: functional chain implementation
-* `example.cpp`: example usage/functionality testing
+* `tdf001_introduction.C`: example usage/tutorial/unit testing
+* `tdf001_introduction.ipynb`: ipython notebook with same content as %.C
+* `makefile`: minimal makefile, assumes `root-config` is in path
+* `README.md`: this document
