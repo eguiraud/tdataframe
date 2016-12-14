@@ -10,6 +10,9 @@ d.filter(neg, {"theta"}).foreach(fill, {"pt_x", "pt_y"});
 ```
 No need for TSelectors or TTreeReader loops anymore. As a huge plus, parallelisation, caching and other optimisations are performed transparently or requiring only minimal action on the user's part.
 
+Try this interactively in your browser now:
+<a href="https://cern.ch/swanserver/cgi-bin/go/?projurl=https://github.com/bluehood/tdataframe.git"> <img src="https://swanserver.web.cern.ch/swanserver/images/badge_swan_white_150.png" /></a>
+
 ## Contents
 * [Quick rundown](#quick-rundown)
 * [Run example on lxplus7 in 5 commands](#run-example-on-lxplus7-in-5-commands)
