@@ -184,15 +184,20 @@ class TTmpDataFrame {
    }
 
    template<class T>
+   void fillhist(std::string branch, TH1& histogram) {
+       TTreeReaderValue<T> v(t, branch.c_str());
+       while(t.Next())
+          if(apply_filters())
+             histogram.Fill(*v);
+   }
+
+
+   template<class T>
    TH1F fillhist(std::string branch, unsigned nbins = 100,
                  std::string name_suffix = "") {
       // histogram with automatic binning
       TH1F h(("h_" + branch).c_str(), branch.c_str(), nbins, 0., 0.);
-      TTreeReaderValue<T> v(t, branch.c_str());
-      while(t.Next())
-         if(apply_filters())
-            h.Fill(*v);
-
+      fillhist<T>(branch, h);
       return h;
    }
 
