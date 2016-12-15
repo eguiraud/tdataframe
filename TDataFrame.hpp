@@ -194,9 +194,9 @@ class TTmpDataFrame {
 
    template<class T>
    TH1F fillhist(std::string branch, unsigned nbins = 100,
-                 std::string name_suffix = "") {
+                 std::string suffix = "") {
       // histogram with automatic binning
-      TH1F h(("h_" + branch).c_str(), branch.c_str(), nbins, 0., 0.);
+      TH1F h(("h_" + branch + suffix).c_str(), branch.c_str(), nbins, 0., 0.);
       fillhist<T>(branch, h);
       return h;
    }
