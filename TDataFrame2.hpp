@@ -1,5 +1,8 @@
-// TODO
-// - extracting filter and foreach from TDataFrame and TDataFrameFilter (they are identical)
+//  TODO
+// - static checks: filter returns bool, n_args == branchlist.size
+//   (the second one requires BranchList to become an std::array)
+// - implement other actions (the ones that return a TDataFrameFuture)
+// - implement TDataFrameFuture, hide calls to TDataFrame::Run
 #ifndef TDATAFRAME
 #define TDATAFRAME
 
@@ -12,8 +15,7 @@
 #include "TTreeReader.h"
 
 /******* meta-utils **********/
-// extract parameter types from a callable object
-// credits to kennytm 
+// extract parameter types from a callable
 template<typename T>
 struct f_traits : public f_traits<decltype(&T::operator())> {};
 
@@ -53,10 +55,9 @@ struct gens<0, S...>{
 };
 /****************************/
 
+
 using BranchList = std::vector<std::string>;
 using TVBVec = std::vector<std::shared_ptr<ROOT::Internal::TTreeReaderValueBase>>;
-class TDataFrameActionBase;
-using ABVec = std::vector<std::shared_ptr<TDataFrameActionBase>>;
 
 
 template<int... S, typename... arg_types>
@@ -82,12 +83,27 @@ class TDataFrameActionBase {
    virtual void ExecuteAction() = 0;
    virtual void BuildReaderValues(TTreeReader& r) = 0;
 };
+using ActionBasePtr = std::shared_ptr<TDataFrameActionBase>;
+using ActionBaseVec = std::vector<ActionBasePtr>;
+
+
+class TDataFrameFilterBase {
+   public:
+   virtual bool CheckFilters(int entry) = 0;
+   virtual void BuildReaderValues(TTreeReader& r) = 0;
+   virtual void BookAction(ActionBasePtr ptr) = 0;
+};
+using FilterBasePtr = std::shared_ptr<TDataFrameFilterBase>;
+using FilterBaseVec = std::vector<FilterBasePtr>;
 
 
 template<typename F, typename PrevDataFrame>
 class TDataFrameAction : public TDataFrameActionBase {
+   using f_arg_types = typename f_traits<F>::arg_types_tuple;
+   using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
+
    public:
-   TDataFrameAction(F f, const BranchList& bl, PrevDataFrame pd)
+   TDataFrameAction(F f, const BranchList& bl, PrevDataFrame& pd)
       : fAction(f), fBranchList(bl), fPrevData(pd) { }
 
    bool CheckFilters(int entry) {
@@ -117,38 +133,69 @@ class TDataFrameAction : public TDataFrameActionBase {
    const BranchList fBranchList;
    PrevDataFrame& fPrevData;
    TVBVec fReaderValues;
-   using f_arg_types = typename f_traits<F>::arg_types_tuple;
-   using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
 };
 
 
+// forward declarations for TDataFrameInterface
 template<typename FilterF, typename PrevDataFrame>
-class TDataFrameFilter {
-   template<typename A, typename B> friend class TDataFrameAction;
-   template<typename A, typename B> friend class TDataFrameFilter;
+class TDataFrameFilter;
 
+
+// this class provides a common public interface to TDataFrame and TDataFrameFilter
+// it contains the Filter call and all action calls
+template<typename Derived>
+class TDataFrameInterface {
    public:
-   TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame pd)
-      : fFilter(f), fBranchList(bl), fPrevData(pd), fLastCheckedEntry(-1),
-        fLastResult(true) { }
-
    template<typename F>
-   auto Filter(F f, const BranchList& bl) -> TDataFrameFilter<F, decltype(*this)> {
-      return TDataFrameFilter<F, decltype(*this)>(f, bl, *this);
+   auto Filter(F f, const BranchList& bl) -> TDataFrameFilter<F, Derived> {
+      auto DFFilterPtr = std::make_shared<TDataFrameFilter<F, Derived>>(f, bl, *fDerivedPtr);
+      BookFilter(DFFilterPtr);
+      return *DFFilterPtr;
    }
 
    template<typename F>
    void Foreach(F f, const BranchList& bl) {
-      Book(std::make_shared<TDataFrameAction<F, decltype(*this)>>(f, bl, *this));
+      BookAction(std::make_shared<TDataFrameAction<F, Derived>>(f, bl, *fDerivedPtr));
+   }
+
+   protected:
+   Derived* fDerivedPtr;
+
+   private:
+   virtual void BookAction(ActionBasePtr ptr) = 0;
+   virtual void BookFilter(FilterBasePtr ptr) = 0;
+};
+
+
+template<typename FilterF, typename PrevDataFrame>
+class TDataFrameFilter
+   : public TDataFrameFilterBase,
+     public TDataFrameInterface<TDataFrameFilter<FilterF, PrevDataFrame>>
+{
+   template<typename A, typename B> friend class TDataFrameAction;
+   template<typename A, typename B> friend class TDataFrameFilter;
+   using f_arg_types = typename f_traits<FilterF>::arg_types_tuple;
+   using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
+   using TDFInterface = TDataFrameInterface<TDataFrameFilter<FilterF, PrevDataFrame>>;
+
+   public:
+   TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame& pd)
+      : fFilter(f), fBranchList(bl), fPrevData(pd), fLastCheckedEntry(-1),
+        fLastResult(true) {
+      TDFInterface::fDerivedPtr = this;
    }
 
    private:
    bool CheckFilters(int entry) {
       if(entry == fLastCheckedEntry)
+         // return cached result
          return fLastResult;
       if(!fPrevData.CheckFilters(entry))
-         return false;
-      fLastResult = CheckFilterHelper(f_arg_types(), f_arg_ind());
+         // a filter upstream returned false, cache the result
+         fLastResult = false;
+      else
+         // evaluate this filter, cache the result
+         fLastResult = CheckFilterHelper(f_arg_types(), f_arg_ind());
       fLastCheckedEntry = entry;
       return fLastResult;
    }
@@ -167,8 +214,12 @@ class TDataFrameFilter {
       fPrevData.BuildReaderValues(r);
    }
 
-   void Book(std::shared_ptr<TDataFrameActionBase> ptr) {
-      fPrevData.Book(ptr);
+   void BookAction(ActionBasePtr ptr) {
+      fPrevData.BookAction(ptr);
+   }
+
+   void BookFilter(FilterBasePtr ptr) {
+      fPrevData.BookFilter(ptr);
    }
 
    FilterF fFilter;
@@ -177,26 +228,17 @@ class TDataFrameFilter {
    TVBVec fReaderValues;
    int fLastCheckedEntry;
    bool fLastResult;
-   using f_arg_types = typename f_traits<FilterF>::arg_types_tuple;
-   using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
 };
 
 
-class TDataFrame {
+class TDataFrame : public TDataFrameInterface<TDataFrame> {
    template<typename A, typename B> friend class TDataFrameAction;
    template<typename A, typename B> friend class TDataFrameFilter;
 
    public:
    TDataFrame(const std::string& treeName, TDirectory* dirPtr)
-      : fTreeName(treeName), fDirPtr(dirPtr) {};
-   template<typename F>
-   auto Filter(F f, const BranchList& bl) -> TDataFrameFilter<F, decltype(*this)> {
-      return TDataFrameFilter<F, decltype(*this)>(f, bl, *this);
-   }
-
-   template<typename F>
-   void Foreach(F f, const BranchList& bl) {
-      Book(std::make_shared<TDataFrameAction<F, decltype(*this)>>(f, bl, *this));
+      : fTreeName(treeName), fDirPtr(dirPtr) {
+      TDataFrameInterface<TDataFrame>::fDerivedPtr = this;
    }
 
    void Run() {
@@ -213,24 +255,31 @@ class TDataFrame {
 
       // forget everything
       fBookedActions.clear();
+      fBookedFilters.clear();
    }
 
    private:
-   ABVec fBookedActions;
+   ActionBaseVec fBookedActions;
+   FilterBaseVec fBookedFilters;
+
    std::string fTreeName;
    TDirectory* fDirPtr;
 
-   void Book(std::shared_ptr<TDataFrameActionBase> actionPtr) {
+   void BookAction(ActionBasePtr actionPtr) {
       fBookedActions.push_back(actionPtr);
    }
 
+   void BookFilter(FilterBasePtr filterPtr) {
+      fBookedFilters.push_back(filterPtr);
+   }
+
    // dummy call, end of recursive chain
-   bool CheckFilters(int entry) {
+   bool CheckFilters(int) {
       return true;
    }
 
    // dummy call, end of recursive chain
-   void BuildReaderValues(TTreeReader& r) {
+   void BuildReaderValues(TTreeReader&) {
       return;
    }
 };
