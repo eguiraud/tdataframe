@@ -14,6 +14,15 @@
 #include "TTreeReader.h"
 
 /******* meta-utils **********/
+
+template<typename T> struct removeConstAndRef{ using type = typename std::remove_const<typename std::remove_reference<T>::type>::type;};
+
+template <typename... Args> struct removeCRFromTupleElements;
+
+template <typename... Args> struct removeCRFromTupleElements<std::tuple<Args...>>{
+    using type = typename std::tuple<typename removeConstAndRef<Args>::type...> ;
+};
+
 // extract parameter types from a callable object
 template<typename T>
 struct f_traits : public f_traits<decltype(&T::operator())> {};
@@ -21,21 +30,21 @@ struct f_traits : public f_traits<decltype(&T::operator())> {};
 // lambdas and std::function
 template<typename R, typename T, typename... Args>
 struct f_traits<R(T::*)(Args...) const> {
-   using arg_types_tuple = typename std::tuple<Args...>;
+   using arg_types_tuple = typename removeCRFromTupleElements<std::tuple<Args...>>::type;
    using ret_t = R;
 };
 
 // mutable lambdas and functor classes
 template<typename R, typename T, typename... Args>
 struct f_traits<R(T::*)(Args...)> {
-   using arg_types_tuple = typename std::tuple<Args...>;
+   using arg_types_tuple = typename removeCRFromTupleElements<std::tuple<Args...>>::type;
    using ret_t = R;
 };
 
 // free functions
 template<typename R, typename... Args>
 struct f_traits<R(*)(Args...)> {
-   using arg_types_tuple = typename std::tuple<Args...>;
+   using arg_types_tuple = typename removeCRFromTupleElements<std::tuple<Args...>>::type;
    using ret_t = R;
 };
 
