@@ -51,7 +51,7 @@ int main() {
    auto ddd = dd.Filter(ko, {});
    ddd.Foreach([]() { std::cout << "ERROR" << std::endl; }, {});
    d.Run();
-   std::cout << "c " << *c << std::endl;
+   std::cout << "c " << *c.get() << std::endl;
 
    // TEST 3: default branches
    TDataFrame d2(treeName, &f, {"b1"});
@@ -59,7 +59,7 @@ int main() {
    auto c2 = d2f.Count();
    d2f.Foreach([](double b1) { std::cout << b1 << std::endl; });
    d2.Run();
-   std::cout << "c2 " << *c2 << std::endl;
+   std::cout << "c2 " << *c2.get() << std::endl;
 
    return 0;
 }
