@@ -16,31 +16,39 @@
 #include "TTreeReader.h"
 
 /******* meta-utils **********/
-// extract parameter types from a callable
+// Remove const and ref
+template<typename T> struct removeConstAndRef{ using type = typename std::remove_const<typename std::remove_reference<T>::type>::type;};
+
+template <typename... Args> struct removeCRFromTupleElements;
+
+template <typename... Args> struct removeCRFromTupleElements<std::tuple<Args...>>{
+    using type = typename std::tuple<typename removeConstAndRef<Args>::type...> ;
+};
+
+// extract parameter types from a callable object
 template<typename T>
 struct f_traits : public f_traits<decltype(&T::operator())> {};
 
 // lambdas and std::function
 template<typename R, typename T, typename... Args>
 struct f_traits<R(T::*)(Args...) const> {
-   using arg_types_tuple = typename std::tuple<Args...>;
+   using arg_types_tuple = typename removeCRFromTupleElements<std::tuple<Args...>>::type;
    using ret_t = R;
 };
 
 // mutable lambdas and functor classes
 template<typename R, typename T, typename... Args>
 struct f_traits<R(T::*)(Args...)> {
-   using arg_types_tuple = typename std::tuple<Args...>;
+   using arg_types_tuple = typename removeCRFromTupleElements<std::tuple<Args...>>::type;
    using ret_t = R;
 };
 
 // free functions
 template<typename R, typename... Args>
 struct f_traits<R(*)(Args...)> {
-   using arg_types_tuple = typename std::tuple<Args...>;
+   using arg_types_tuple = typename removeCRFromTupleElements<std::tuple<Args...>>::type;
    using ret_t = R;
 };
-
 
 // compile-time integer sequence generator
 // e.g. calling gens<3>::type() instantiates a seq<0,1,2>
@@ -98,6 +106,9 @@ using FilterBasePtr = std::shared_ptr<TDataFrameFilterBase>;
 using FilterBaseVec = std::vector<FilterBasePtr>;
 
 
+// Forward declaration
+class TDataFrame;
+
 template<typename F, typename PrevDataFrame>
 class TDataFrameAction : public TDataFrameActionBase {
    using f_arg_types = typename f_traits<F>::arg_types_tuple;
@@ -105,7 +116,7 @@ class TDataFrameAction : public TDataFrameActionBase {
 
    public:
    TDataFrameAction(F f, const BranchList& bl, PrevDataFrame& pd)
-      : fAction(f), fBranchList(bl), fPrevData(pd) { }
+      : fAction(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData) { }
 
    bool CheckFilters(int entry) {
       return fPrevData.CheckFilters(entry);
@@ -133,9 +144,9 @@ class TDataFrameAction : public TDataFrameActionBase {
    F fAction;
    const BranchList fBranchList;
    PrevDataFrame& fPrevData;
+   TDataFrame& fFirstData;
    TVBVec fReaderValues;
 };
-
 
 // forward declarations for TDataFrameInterface
 template<typename FilterF, typename PrevDataFrame>
@@ -190,7 +201,7 @@ class TDataFrameFilter
 
    public:
    TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame& pd)
-      : fFilter(f), fBranchList(bl), fPrevData(pd), fLastCheckedEntry(-1),
+      : fFilter(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData), fLastCheckedEntry(-1),
         fLastResult(true) {
       TDFInterface::fDerivedPtr = this;
    }
@@ -235,6 +246,7 @@ class TDataFrameFilter
    FilterF fFilter;
    const BranchList fBranchList;
    PrevDataFrame& fPrevData;
+   TDataFrame& fFirstData;
    TVBVec fReaderValues;
    int fLastCheckedEntry;
    bool fLastResult;
@@ -247,7 +259,7 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
 
    public:
    TDataFrame(const std::string& treeName, TDirectory* dirPtr)
-      : fTreeName(treeName), fDirPtr(dirPtr) {
+      : fTreeName(treeName), fDirPtr(dirPtr), fFirstData(*this) {
       TDataFrameInterface<TDataFrame>::fDerivedPtr = this;
    }
 
@@ -273,6 +285,7 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
    FilterBaseVec fBookedFilters;
 
    std::string fTreeName;
+   TDataFrame& fFirstData;
    TDirectory* fDirPtr;
 
    void BookAction(ActionBasePtr actionPtr) {

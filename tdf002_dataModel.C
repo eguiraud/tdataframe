@@ -22,7 +22,7 @@
 #include "TTree.h"
 #include "ROOT/TSeq.hxx"
 
-#include "TDataFrame.hpp"
+#include "TDataFrame2.hpp"
 
 using FourVector = ROOT::Math::XYZTVector;
 using CylFourVector = ROOT::Math::RhoEtaPhiVector;
@@ -73,19 +73,18 @@ int tdf002_dataModel() {
    // We read the tree from the file and create a TDataFrame, a class that 
    // allows us to interact with the data contained in the tree.
    TFile f(fileName);
-   TTree* t;
-   f.GetObject(treeName,t);
-   TDataFrame d(*t, {"tracks"});
+   TDataFrame d(treeName, &f);
 
    // ## Operating on branches which are collection of objects
    // Here we deal with the simplest of the cuts: we decide to accept the event
    // only if the number of tracks is greater than 5.
-   auto n_cut = [](std::vector<FourVector> const & tracks) { return tracks.size() > 5; };
-   auto entries = d.filter(n_cut)
-                   .collect_entries();
+   auto n_cut = [](std::vector<FourVector> & tracks) { return tracks.size() > 5; };
+   auto nentries = d.Filter(n_cut, {"tracks"})
+                   .Count();
 
-   for(auto x: entries)
-      std::cout << "Entry " << x << " passed all filters" << std::endl;
+   d.Run();
+
+   std::cout << *nentries << " passed all filters" << std::endl;
 
    return 0;
 }
