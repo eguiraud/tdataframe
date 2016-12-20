@@ -122,5 +122,10 @@ int main() {
    std::cout << "c4 " << c4v << std::endl;
    CheckRes(c4v,1U,"Non trivial test");
 
+   // TEST 6: Create a histogram
+   TDataFrame d5(treeName, &f);
+   auto h = d5.Histo<double>("b1");
+   std::cout << "Histo: nEntries " << h->GetEntries() << std::endl;
+
    return 0;
 }

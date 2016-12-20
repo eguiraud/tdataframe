@@ -5,6 +5,8 @@
 #ifndef TDATAFRAME
 #define TDATAFRAME
 
+#include "TH1F.h" // For Histo actions
+
 #include <iostream>
 #include <list>
 #include <vector>
@@ -232,11 +234,29 @@ class TDataFrameInterface {
    }
 
    ActionResultPtr<unsigned> Count() {
-      ActionResultPtr<unsigned> c (new unsigned(0), fDerivedPtr->fFirstData);
+      ActionResultPtr<unsigned> c (new unsigned(0), fDerivedPtr->GetDataFrame());
       auto countAction = [&c]() -> void { (*c.getUnchecked())++; };
       BranchList bl = {};
       BookAction(std::make_shared<TDataFrameAction<decltype(countAction), Derived>>(countAction, bl, *fDerivedPtr));
       return c;
+   }
+
+   template<typename T>
+   ActionResultPtr<TH1F> Histo(const std::string& branchName = "", int nBins = 128) {
+      ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), fDerivedPtr->GetDataFrame());
+      auto fillAction = [&h](T v) -> void { auto hv = h.getUnchecked(); hv->Fill(v); };
+      BranchList bl {branchName};
+      if (branchName.empty()) {
+         // Try the default branch if possible
+         const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
+         if (defBl.size() == 1) bl = defBl;
+         else {
+            auto msg = "No branch in input to create a histogram and more than one default branch.";
+         throw std::runtime_error(msg);
+         }
+      }
+      BookAction(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction, bl, *fDerivedPtr));
+      return h;
    }
 
    protected:
