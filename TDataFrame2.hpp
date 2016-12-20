@@ -6,6 +6,7 @@
 #ifndef TDATAFRAME
 #define TDATAFRAME
 
+#include <iostream>
 #include <list>
 #include <vector>
 #include <string>
@@ -156,6 +157,15 @@ class TDataFrameInterface {
    template<typename F>
    void Foreach(F f, const BranchList& bl) {
       BookAction(std::make_shared<TDataFrameAction<F, Derived>>(f, bl, *fDerivedPtr));
+   }
+
+   unsigned* Count() {
+      //TODO this needs to be a TDataFramePtr (smart pointer with special effects)
+      unsigned* c = new unsigned(0);
+      auto countAction = [c]() -> void { (*c)++; };
+      BranchList bl = {};
+      BookAction(std::make_shared<TDataFrameAction<decltype(countAction), Derived>>(countAction, bl, *fDerivedPtr));
+      return c;
    }
 
    protected:
