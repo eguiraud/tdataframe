@@ -1,6 +1,5 @@
 //  TODO
-// - static checks: filter returns bool, n_args == branchlist.size
-//   (the second one requires BranchList to become an std::array)
+// - static checks n_args == branchlist.size (template classes over parameter N of std::array?)
 // - implement other actions (the ones that return a TDataFrameFuture)
 // - implement TDataFrameFuture, hide calls to TDataFrame::Run
 #ifndef TDATAFRAME
@@ -80,6 +79,34 @@ TVBVec BuildReaderValues(TTreeReader& r, const BranchList& bl, std::tuple<arg_ty
 }
 
 
+template<typename Filter>
+void CheckFilter(Filter f) {
+   using FilterRetType = typename f_traits<Filter>::ret_t;
+   static_assert(std::is_same<FilterRetType, bool>::value,
+                 "filter functions must return a bool");
+}
+
+
+template<typename F>
+const BranchList& ShouldUseDefaultBranches(F f, const BranchList& bl, const BranchList& defBl) {
+   using ArgsTuple = typename f_traits<F>::arg_types_tuple;
+   auto nArgs = std::tuple_size<ArgsTuple>::value;
+   bool useDefBl = false;
+   if(nArgs != bl.size()) {
+      if(bl.size() == 0 && nArgs == defBl.size()) {
+         useDefBl = true;
+      } else {
+         auto msg = "mismatch between number of filter arguments (" \
+                     + std::to_string(nArgs) + ") and number of branches (" \
+                     + std::to_string(bl.size()?:defBl.size()) + ")";
+         throw std::runtime_error(msg);
+      }
+   }
+
+   return useDefBl ? defBl : bl;
+}
+
+
 class TDataFrameActionBase {
    public:
    void Run(int entry) {
@@ -114,7 +141,7 @@ template<typename T>
 class ActionResultPtr {
    TDataFrame& fFirstData;
    std::shared_ptr<T> fObjPtr;
-   ActionResultPtr(T* objPtr): fObjPtr(objPtr),
+   ActionResultPtr(T* objPtr): fObjPtr(objPtr)
    {
 
    }
@@ -174,15 +201,20 @@ template<typename Derived>
 class TDataFrameInterface {
    public:
    template<typename F>
-   auto Filter(F f, const BranchList& bl) -> TDataFrameFilter<F, Derived> {
-      auto DFFilterPtr = std::make_shared<TDataFrameFilter<F, Derived>>(f, bl, *fDerivedPtr);
+   auto Filter(F f, const BranchList& bl = {}) -> TDataFrameFilter<F, Derived> {
+      ::CheckFilter(f);
+      const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
+      const BranchList& actualBl = ::ShouldUseDefaultBranches(f, bl, defBl);
+      auto DFFilterPtr = std::make_shared<TDataFrameFilter<F, Derived>>(f, actualBl, *fDerivedPtr);
       BookFilter(DFFilterPtr);
       return *DFFilterPtr;
    }
 
    template<typename F>
-   void Foreach(F f, const BranchList& bl) {
-      BookAction(std::make_shared<TDataFrameAction<F, Derived>>(f, bl, *fDerivedPtr));
+   void Foreach(F f, const BranchList& bl = {}) {
+      const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
+      const BranchList& actualBl = ::ShouldUseDefaultBranches(f, bl, defBl);
+      BookAction(std::make_shared<TDataFrameAction<F, Derived>>(f, actualBl, *fDerivedPtr));
    }
 
    unsigned* Count() {
@@ -200,6 +232,7 @@ class TDataFrameInterface {
    private:
    virtual void BookAction(ActionBasePtr ptr) = 0;
    virtual void BookFilter(FilterBasePtr ptr) = 0;
+   virtual TDataFrame& GetDataFrame() const = 0;
 };
 
 
@@ -219,6 +252,10 @@ class TDataFrameFilter
       : fFilter(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData), fLastCheckedEntry(-1),
         fLastResult(true) {
       TDFInterface::fDerivedPtr = this;
+   }
+
+   TDataFrame& GetDataFrame() const {
+      return fFirstData;
    }
 
    private:
@@ -273,8 +310,9 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
    template<typename A, typename B> friend class TDataFrameFilter;
 
    public:
-   TDataFrame(const std::string& treeName, TDirectory* dirPtr)
-      : fTreeName(treeName), fDirPtr(dirPtr), fFirstData(*this) {
+   TDataFrame(const std::string& treeName, TDirectory* dirPtr, const BranchList& defaultBranches = {})
+      : fTreeName(treeName), fDirPtr(dirPtr), fDefaultBranches(defaultBranches),
+        fFirstData(*this) {
       TDataFrameInterface<TDataFrame>::fDerivedPtr = this;
    }
 
@@ -295,14 +333,15 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
       fBookedFilters.clear();
    }
 
+   TDataFrame& GetDataFrame() const {
+      return fFirstData;
+   }
+
+   const BranchList& GetDefaultBranches() const {
+      return fDefaultBranches;
+   }
+
    private:
-   ActionBaseVec fBookedActions;
-   FilterBaseVec fBookedFilters;
-
-   std::string fTreeName;
-   TDataFrame& fFirstData;
-   TDirectory* fDirPtr;
-
    void BookAction(ActionBasePtr actionPtr) {
       fBookedActions.push_back(actionPtr);
    }
@@ -320,6 +359,13 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
    void BuildReaderValues(TTreeReader&) {
       return;
    }
+
+   ActionBaseVec fBookedActions;
+   FilterBaseVec fBookedFilters;
+   std::string fTreeName;
+   TDirectory* fDirPtr;
+   const BranchList fDefaultBranches;
+   TDataFrame& fFirstData;
 };
 
 #endif //TDATAFRAME
