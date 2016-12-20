@@ -50,8 +50,6 @@ struct f_traits<R(*)(Args...)> {
    using ret_t = R;
 };
 
-
-
 // compile-time integer sequence generator
 // e.g. calling gens<3>::type() instantiates a seq<0,1,2>
 template<int ...>
