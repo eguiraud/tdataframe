@@ -137,19 +137,33 @@ using FilterBaseVec = std::vector<FilterBasePtr>;
 class TDataFrame;
 
 // Smart pointer for the return type of actions
-template<typename T>
-class ActionResultPtr {
+class ActionResultPtrBase {
+   friend TDataFrame;
    TDataFrame& fFirstData;
-   std::shared_ptr<T> fObjPtr;
-   ActionResultPtr(T* objPtr): fObjPtr(objPtr)
-   {
-
-   }
+   bool fReady = false;
+   void SetReady() {fReady = true;}
+protected:
+   bool IsReady() {return fReady;}
+   void TriggerRun();
 public:
-   T *operator->() {
+   ActionResultPtrBase(TDataFrame& firstData);
+};
+
+using ActionResultPtrBaseVec = std::vector<ActionResultPtrBase*>;
+
+template<typename T>
+class ActionResultPtr : public ActionResultPtrBase{
+   std::shared_ptr<T> fObjPtr;
+public:
+   ActionResultPtr(T* objPtr, TDataFrame& firstData): ActionResultPtrBase(firstData), fObjPtr(objPtr){}
+   T *get() {
+      if (!IsReady()) TriggerRun();
       return fObjPtr.get();
    }
+   T *operator->() { return get(); }
+   T *getUnchecked() { return fObjPtr.get(); }
 };
+
 
 template<typename F, typename PrevDataFrame>
 class TDataFrameAction : public TDataFrameActionBase {
@@ -217,10 +231,9 @@ class TDataFrameInterface {
       BookAction(std::make_shared<TDataFrameAction<F, Derived>>(f, actualBl, *fDerivedPtr));
    }
 
-   unsigned* Count() {
-      //TODO this needs to be a TDataFramePtr (smart pointer with special effects)
-      unsigned* c = new unsigned(0);
-      auto countAction = [c]() -> void { (*c)++; };
+   ActionResultPtr<unsigned> Count() {
+      ActionResultPtr<unsigned> c (new unsigned(0), fDerivedPtr->fFirstData);
+      auto countAction = [&c]() -> void { (*c.getUnchecked())++; };
       BranchList bl = {};
       BookAction(std::make_shared<TDataFrameAction<decltype(countAction), Derived>>(countAction, bl, *fDerivedPtr));
       return c;
@@ -243,6 +256,7 @@ class TDataFrameFilter
 {
    template<typename A, typename B> friend class TDataFrameAction;
    template<typename A, typename B> friend class TDataFrameFilter;
+   template<typename A> friend class TDataFrameInterface;
    using f_arg_types = typename f_traits<FilterF>::arg_types_tuple;
    using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
    using TDFInterface = TDataFrameInterface<TDataFrameFilter<FilterF, PrevDataFrame>>;
@@ -308,6 +322,7 @@ class TDataFrameFilter
 class TDataFrame : public TDataFrameInterface<TDataFrame> {
    template<typename A, typename B> friend class TDataFrameAction;
    template<typename A, typename B> friend class TDataFrameFilter;
+   friend ActionResultPtrBase;
 
    public:
    TDataFrame(const std::string& treeName, TDirectory* dirPtr, const BranchList& defaultBranches = {})
@@ -331,6 +346,11 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
       // forget everything
       fBookedActions.clear();
       fBookedFilters.clear();
+      for (auto aptr : fActionResultsPtrs) {
+         aptr->SetReady();
+      }
+      fActionResultsPtrs.clear();
+
    }
 
    TDataFrame& GetDataFrame() const {
@@ -360,12 +380,25 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
       return;
    }
 
+   // register a ActionResultPtr
+   void RegisterActionResult(ActionResultPtrBase* ptr) {
+      fActionResultsPtrs.emplace_back(ptr);
+   }
+
    ActionBaseVec fBookedActions;
    FilterBaseVec fBookedFilters;
+   ActionResultPtrBaseVec fActionResultsPtrs;
    std::string fTreeName;
    TDirectory* fDirPtr;
    const BranchList fDefaultBranches;
    TDataFrame& fFirstData;
 };
+
+// Implementation of methods
+
+void ActionResultPtrBase::TriggerRun() {fFirstData.Run();}
+ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData):fFirstData(firstData){
+   firstData.RegisterActionResult(this);
+}
 
 #endif //TDATAFRAME
