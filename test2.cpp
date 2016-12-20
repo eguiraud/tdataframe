@@ -61,5 +61,11 @@ int main() {
    d2.Run();
    std::cout << "c2 " << *c2.get() << std::endl;
 
+   // TEST 4: execute Run lazily and implicitly
+   TDataFrame d3(treeName, &f, {"b1"});
+   auto d3f = d3.Filter([](double b1) { return b1 < 4; }).Filter(ok, {});
+   auto c3 = d3f.Count();
+   std::cout << "c3 " << *c3.get() << std::endl;
+
    return 0;
 }
