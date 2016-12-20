@@ -241,21 +241,23 @@ class TDataFrameInterface {
       return c;
    }
 
-   template<typename T>
+   template<typename T = double>
    ActionResultPtr<TH1F> Histo(const std::string& branchName = "", int nBins = 128) {
-      ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), fDerivedPtr->GetDataFrame());
-      auto fillAction = [&h](T v) -> void { auto hv = h.getUnchecked(); hv->Fill(v); };
-      BranchList bl {branchName};
-      if (branchName.empty()) {
+      auto theBranchName (branchName);
+      if (theBranchName.empty()) {
          // Try the default branch if possible
          const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
-         if (defBl.size() == 1) bl = defBl;
+         if (defBl.size() == 1) theBranchName = defBl[0];
          else {
             auto msg = "No branch in input to create a histogram and more than one default branch.";
          throw std::runtime_error(msg);
          }
       }
-      BookAction(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction, bl, *fDerivedPtr));
+
+      ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), fDerivedPtr->GetDataFrame());
+      // TODO: Here we need a proper switch to select at runtime the right type
+      BookHistoAction<T>(theBranchName, h);
+
       return h;
    }
 
@@ -263,6 +265,14 @@ class TDataFrameInterface {
    Derived* fDerivedPtr;
 
    private:
+   template<typename T, typename HistResult>
+   void BookHistoAction(const std::string& theBranchName, HistResult& h){
+      auto fillAction = [&h](T v) -> void { auto hv = h.getUnchecked(); hv->Fill(v.GetEntries()); };
+      BranchList bl = {theBranchName};
+      BookAction(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction,
+                                                                                   bl,
+                                                                                   *fDerivedPtr));
+   }
    virtual void BookAction(ActionBasePtr ptr) = 0;
    virtual void BookFilter(FilterBasePtr ptr) = 0;
    virtual TDataFrame& GetDataFrame() const = 0;
