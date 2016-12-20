@@ -82,9 +82,7 @@ int tdf002_dataModel() {
    auto nentries = d.Filter(n_cut, {"tracks"})
                    .Count();
 
-   d.Run();
-
-   std::cout << *nentries << " passed all filters" << std::endl;
+   std::cout << *nentries.get() << " passed all filters" << std::endl;
 
    return 0;
 }
