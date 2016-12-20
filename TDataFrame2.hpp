@@ -106,6 +106,9 @@ using FilterBasePtr = std::shared_ptr<TDataFrameFilterBase>;
 using FilterBaseVec = std::vector<FilterBasePtr>;
 
 
+// Forward declaration
+class TDataFrame;
+
 template<typename F, typename PrevDataFrame>
 class TDataFrameAction : public TDataFrameActionBase {
    using f_arg_types = typename f_traits<F>::arg_types_tuple;
@@ -113,7 +116,7 @@ class TDataFrameAction : public TDataFrameActionBase {
 
    public:
    TDataFrameAction(F f, const BranchList& bl, PrevDataFrame& pd)
-      : fAction(f), fBranchList(bl), fPrevData(pd) { }
+      : fAction(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData) { }
 
    bool CheckFilters(int entry) {
       return fPrevData.CheckFilters(entry);
@@ -141,9 +144,9 @@ class TDataFrameAction : public TDataFrameActionBase {
    F fAction;
    const BranchList fBranchList;
    PrevDataFrame& fPrevData;
+   TDataFrame& fFirstData;
    TVBVec fReaderValues;
 };
-
 
 // forward declarations for TDataFrameInterface
 template<typename FilterF, typename PrevDataFrame>
@@ -198,7 +201,7 @@ class TDataFrameFilter
 
    public:
    TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame& pd)
-      : fFilter(f), fBranchList(bl), fPrevData(pd), fLastCheckedEntry(-1),
+      : fFilter(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData), fLastCheckedEntry(-1),
         fLastResult(true) {
       TDFInterface::fDerivedPtr = this;
    }
@@ -243,6 +246,7 @@ class TDataFrameFilter
    FilterF fFilter;
    const BranchList fBranchList;
    PrevDataFrame& fPrevData;
+   TDataFrame& fFirstData;
    TVBVec fReaderValues;
    int fLastCheckedEntry;
    bool fLastResult;
@@ -255,7 +259,7 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
 
    public:
    TDataFrame(const std::string& treeName, TDirectory* dirPtr)
-      : fTreeName(treeName), fDirPtr(dirPtr) {
+      : fTreeName(treeName), fDirPtr(dirPtr), fFirstData(*this) {
       TDataFrameInterface<TDataFrame>::fDerivedPtr = this;
    }
 
@@ -281,6 +285,7 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
    FilterBaseVec fBookedFilters;
 
    std::string fTreeName;
+   TDataFrame& fFirstData;
    TDirectory* fDirPtr;
 
    void BookAction(ActionBasePtr actionPtr) {
