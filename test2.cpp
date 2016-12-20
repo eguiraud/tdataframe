@@ -42,10 +42,12 @@ int main() {
    auto dd = d.Filter(ok, {});
    dd.Foreach([](double x) { std::cout << x << " "; }, {"b1"});
    dd.Foreach([](int y) { std::cout << y << std::endl; }, {"b2"});
+   auto c = dd.Count();
    // Fork again: now apply two filters before performing action
    auto ddd = dd.Filter(ko, {});
    ddd.Foreach([]() { std::cout << "ERROR" << std::endl; }, {});
 
    d.Run();
+   std::cout << *c << std::endl;
    return 0;
 }
