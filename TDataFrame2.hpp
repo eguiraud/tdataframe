@@ -163,6 +163,7 @@ public:
       if (!IsReady()) TriggerRun();
       return fObjPtr.get();
    }
+   T& operator*() { return *get(); }
    T *operator->() { return get(); }
    T *getUnchecked() { return fObjPtr.get(); }
 };

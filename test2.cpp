@@ -98,7 +98,7 @@ int main() {
    auto ddd = dd.Filter(ko, {});
    ddd.Foreach([]() { std::cout << "ERROR" << std::endl; }, {});
    d.Run();
-   auto cv = *c.get();
+   auto cv = *c;
    std::cout << "c " << cv << std::endl;
    CheckRes(cv,20U,"Forked Actions");
 
@@ -108,7 +108,7 @@ int main() {
    auto c2 = d2f.Count();
    d2f.Foreach([](double b1) { std::cout << b1 << std::endl; });
    d2.Run();
-   auto c2v = *c2.get();
+   auto c2v = *c2;
    std::cout << "c2 " << c2v << std::endl;
    CheckRes(c2v,5U,"Default branches");
 
@@ -116,7 +116,7 @@ int main() {
    TDataFrame d3(treeName, &f, {"b1"});
    auto d3f = d3.Filter([](double b1) { return b1 < 4; }).Filter(ok, {});
    auto c3 = d3f.Count();
-   auto c3v = *c3.get();
+   auto c3v = *c3;
    std::cout << "c3 " << c3v << std::endl;
    CheckRes(c3v,4U,"Execute Run lazily and implicitly");
 
@@ -124,7 +124,7 @@ int main() {
    TDataFrame d4(treeName, &f, {"tracks"});
    auto d4f = d4.Filter([](FourVectors const & tracks) { return tracks.size() > 7; });
    auto c4 = d4f.Count();
-   auto c4v = *c4.get();
+   auto c4v = *c4;
    std::cout << "c4 " << c4v << std::endl;
    CheckRes(c4v,1U,"Non trivial test");
 
