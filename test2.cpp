@@ -43,14 +43,20 @@ void FillTree(const char* filename, const char* treeName) {
    double b1;
    int b2;
    std::vector<FourVector> tracks;
+   std::vector<double> dv {1,2,3,4};
+   std::list<int> sl {1,2,3,4};
    t.Branch("b1", &b1);
    t.Branch("b2", &b2);
    t.Branch("tracks", &tracks);
+   t.Branch("dv", &dv);
+   t.Branch("sl", &sl);
 
    for(auto i : ROOT::TSeqI(20)) {
       b1 = i;
       b2 = i*i;
       getTracks(tracks);
+      dv.emplace_back(i);
+      sl.emplace_back(i);
       t.Fill();
    }
    t.Write();
@@ -92,7 +98,7 @@ int main() {
    auto ddd = dd.Filter(ko, {});
    ddd.Foreach([]() { std::cout << "ERROR" << std::endl; }, {});
    d.Run();
-   auto cv = *c.get();
+   auto cv = *c;
    std::cout << "c " << cv << std::endl;
    CheckRes(cv,20U,"Forked Actions");
 
@@ -102,7 +108,7 @@ int main() {
    auto c2 = d2f.Count();
    d2f.Foreach([](double b1) { std::cout << b1 << std::endl; });
    d2.Run();
-   auto c2v = *c2.get();
+   auto c2v = *c2;
    std::cout << "c2 " << c2v << std::endl;
    CheckRes(c2v,5U,"Default branches");
 
@@ -110,7 +116,7 @@ int main() {
    TDataFrame d3(treeName, &f, {"b1"});
    auto d3f = d3.Filter([](double b1) { return b1 < 4; }).Filter(ok, {});
    auto c3 = d3f.Count();
-   auto c3v = *c3.get();
+   auto c3v = *c3;
    std::cout << "c3 " << c3v << std::endl;
    CheckRes(c3v,4U,"Execute Run lazily and implicitly");
 
@@ -118,14 +124,20 @@ int main() {
    TDataFrame d4(treeName, &f, {"tracks"});
    auto d4f = d4.Filter([](FourVectors const & tracks) { return tracks.size() > 7; });
    auto c4 = d4f.Count();
-   auto c4v = *c4.get();
+   auto c4v = *c4;
    std::cout << "c4 " << c4v << std::endl;
    CheckRes(c4v,1U,"Non trivial test");
 
    // TEST 6: Create a histogram
-   TDataFrame d5(treeName, &f);
-   auto h = d5.Histo<double>("b1");
-   std::cout << "Histo: nEntries " << h->GetEntries() << std::endl;
+   TDataFrame d5(treeName, &f, {"b2"});
+   auto h1 = d5.Histo();
+   auto h2 = d5.Histo("b1");
+   auto h3 = d5.Histo("dv");
+   auto h4 = d5.Histo<std::list<int>>("sl");
+   std::cout << "Histo1: nEntries " << h1->GetEntries() << std::endl;
+   std::cout << "Histo2: nEntries " << h2->GetEntries() << std::endl;
+   std::cout << "Histo3: nEntries " << h3->GetEntries() << std::endl;
+   std::cout << "Histo4: nEntries " << h4->GetEntries() << std::endl;
 
    return 0;
 }
