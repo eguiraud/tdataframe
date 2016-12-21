@@ -14,6 +14,7 @@
 #include "TBranchElement.h"
 #include "TTreeReaderValue.h"
 #include "TTreeReader.h"
+#include "TFile.h"
 
 /******* meta-utils **********/
 // Remove const and ref
@@ -327,6 +328,8 @@ public:
       BookAction(std::make_shared<TDataFrameAction<decltype(countAction), Derived>>(countAction, bl, *fDerivedPtr));
       return c;
    }
+
+   TDataFrame Dump(const std::string& treeName, const std::string& fileName, const BranchList& bl = {});
 
    template<typename T = double>
    ActionResultPtr<TH1F> Histo(const std::string& branchName = "", int nBins = 128) {
@@ -725,6 +728,29 @@ void ActionResultPtrBase::TriggerRun() {fFirstData.Run();}
 ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData):fFirstData(firstData)
 {
    firstData.RegisterActionResult(this);
+}
+
+
+// FIXME: this does not work, the TTree that we would clone from is not the same the TTreeReader loops over
+// IDEA: let's deal with the Dump action directly inside TDataFrame instead.
+template<typename Derived>
+TDataFrame TDataFrameInterface<Derived>::Dump(const std::string& treeName, const std::string& fileName, const BranchList& bl) {
+   auto& df = fDerivedPtr->GetDataFrame();
+   auto oldTree = (TTree*) df.GetDirectory()->Get(df.GetTreeName().c_str());
+   oldTree->SetBranchStatus("*", 0);
+   const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
+   for(auto& b : defBl)
+      oldTree->SetBranchStatus(b.c_str(), 1);
+   auto file = TFile::Open(fileName.c_str(), "RECREATE");
+   auto newTree = oldTree->CloneTree(0);
+   auto fillAction = [&newTree]() { newTree->Fill(); };
+   BranchList dummy = {};
+   BookAction(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction, dummy, *fDerivedPtr));
+   fDerivedPtr->GetDataFrame().Run();
+   newTree->Write();
+   file->Close();
+   TDirectory* newDir = TFile::Open(fileName.c_str());
+   return TDataFrame(treeName, newDir);
 }
 
 #endif //TDATAFRAME

@@ -161,6 +161,11 @@ int main() {
    std::cout << "AddBranch Histo entries: " << h7->GetEntries() << std::endl;
    std::cout << "AddBranch Histo mean: " << h7->GetMean() << std::endl;
 
+   // TEST 9: Dump
+   // FIXME this will work when Dump will work
+   // TDataFrame d8(treeName, &f, {"b1","tracks"});
+   // auto newDF = d8.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"}).Dump("newtree", "newfile.root");
+
    return 0;
 }
 
