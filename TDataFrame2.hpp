@@ -5,9 +5,9 @@
 #ifndef TDATAFRAME
 #define TDATAFRAME
 
-#include <iostream> // FIXME delete me
 #include "TH1F.h" // For Histo actions
 
+#include <typeinfo>
 #include <map>
 #include <algorithm>
 #include <list>
@@ -153,6 +153,7 @@ class TDataFrameBranchBase {
    public:
    virtual std::string GetName() const = 0;
    virtual void* GetValue(int entry) = 0;
+   virtual const std::type_info& GetTypeId() const = 0;
 };
 using TmpBranchBasePtr = std::shared_ptr<TDataFrameBranchBase>;
 using TmpBranchBaseVec = std::vector<TmpBranchBasePtr>;
@@ -337,37 +338,61 @@ class TDataFrameInterface {
       auto& df = fDerivedPtr->GetDataFrame();
       ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), df);
       // TODO: Here we need a proper switch to select at runtime the right type
-      auto tree = (TTree*) df.fDirPtr->Get(df.fTreeName.c_str());
+      auto tree = (TTree*) df.GetDirectory()->Get(df.GetTreeName().c_str());
       auto branch = tree->GetBranch(theBranchName.c_str());
+      if(!branch) {
+         const auto& type_id = df.GetBookedBranch(branchName).GetTypeId();
+         if (type_id == typeid(char)) {BookHistoAction<char>(theBranchName, h); return h;}
+         // else if (type_id == typeid(unsigned char)) {BookHistoAction<unsigned char>(theBranchName, h); return h;}
+         // else if (type_id == typeid(short)) {BookHistoAction<short>(theBranchName, h); return h;}
+         // else if (type_id == typeid(unsigned short)) {BookHistoAction<unsigned short>(theBranchName, h); return h;}
+         else if (type_id == typeid(int)) {BookHistoAction<int>(theBranchName, h); return h;}
+         // else if (type_id == typeid(unsigned int)) {BookHistoAction<unsigned int>(theBranchName, h); return h;}
+         // else if (type_id == typeid(float)) {BookHistoAction<float>(theBranchName, h); return h;}
+         else if (type_id == typeid(double)) {BookHistoAction<double>(theBranchName, h); return h;}
+         // else if (type_id == typeid(long int)) {BookHistoAction<long int>(theBranchName, h); return h;}
+         // else if (type_id == typeid(unsigned long int)) {BookHistoAction<unsigned long int>(theBranchName, h); return h;}
+         else if (type_id == typeid(bool)) {BookHistoAction<bool>(theBranchName, h); return h;}
+         else if (type_id == typeid(std::vector<double>)) {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<float>)) {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<bool>)) {BookHistoAction<std::vector<bool>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<char>)) {BookHistoAction<std::vector<char>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<short>)) {BookHistoAction<std::vector<short>>(theBranchName, h); return h;}
+         else if (type_id == typeid(std::vector<int>)) {BookHistoAction<std::vector<int>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<long int>)) {BookHistoAction<std::vector<long int>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<unsigned char>)) {BookHistoAction<std::vector<unsigned char>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<unsigned short>)) {BookHistoAction<std::vector<unsigned short>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<unsigned int>)) {BookHistoAction<std::vector<unsigned int>>(theBranchName, h); return h;}
+         // else if (type_id == typeid(std::vector<unsigned long int>)) {BookHistoAction<std::vector<unsigned long int>>(theBranchName, h); return h;}
+      }
       auto branchEl = dynamic_cast<TBranchElement*>(branch);
       if (!branchEl) { // This is a fundamental type
          auto title = branch->GetTitle();
          auto typeCode = title[strlen(title)-1];
          if (typeCode == 'B') {BookHistoAction<char>(theBranchName, h); return h;}
-         else if (typeCode == 'b') {BookHistoAction<unsigned char>(theBranchName, h); return h;}
-         else if (typeCode == 'S') {BookHistoAction<short>(theBranchName, h); return h;}
-         else if (typeCode == 's') {BookHistoAction<unsigned short>(theBranchName, h); return h;}
+         // else if (typeCode == 'b') {BookHistoAction<unsigned char>(theBranchName, h); return h;}
+         // else if (typeCode == 'S') {BookHistoAction<short>(theBranchName, h); return h;}
+         // else if (typeCode == 's') {BookHistoAction<unsigned short>(theBranchName, h); return h;}
          else if (typeCode == 'I') {BookHistoAction<int>(theBranchName, h); return h;}
-         else if (typeCode == 'i') {BookHistoAction<unsigned int>(theBranchName, h); return h;}
-         else if (typeCode == 'F') {BookHistoAction<float>(theBranchName, h); return h;}
+         // else if (typeCode == 'i') {BookHistoAction<unsigned int>(theBranchName, h); return h;}
+         // else if (typeCode == 'F') {BookHistoAction<float>(theBranchName, h); return h;}
          else if (typeCode == 'D') {BookHistoAction<double>(theBranchName, h); return h;}
-         else if (typeCode == 'L') {BookHistoAction<long int>(theBranchName, h); return h;}
-         else if (typeCode == 'l') {BookHistoAction<unsigned long int>(theBranchName, h); return h;}
-         else if (typeCode == 'O') {BookHistoAction<bool>(theBranchName, h); return h;}
+         // else if (typeCode == 'L') {BookHistoAction<long int>(theBranchName, h); return h;}
+         // else if (typeCode == 'l') {BookHistoAction<unsigned long int>(theBranchName, h); return h;}
+         // else if (typeCode == 'O') {BookHistoAction<bool>(theBranchName, h); return h;}
       } else {
          std::string typeName = branchEl->GetTypeName();
          if (typeName == "vector<double>") {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
-         else if (typeName == "vector<float>") {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
-         else if (typeName == "vector<bool>") {BookHistoAction<std::vector<bool>>(theBranchName, h); return h;}
-         else if (typeName == "vector<char>") {BookHistoAction<std::vector<char>>(theBranchName, h); return h;}
-         else if (typeName == "vector<short>") {BookHistoAction<std::vector<short>>(theBranchName, h); return h;}
+         // else if (typeName == "vector<float>") {BookHistoAction<std::vector<float>>(theBranchName, h); return h;}
+         // else if (typeName == "vector<bool>") {BookHistoAction<std::vector<bool>>(theBranchName, h); return h;}
+         // else if (typeName == "vector<char>") {BookHistoAction<std::vector<char>>(theBranchName, h); return h;}
+         // else if (typeName == "vector<short>") {BookHistoAction<std::vector<short>>(theBranchName, h); return h;}
          else if (typeName == "vector<int>") {BookHistoAction<std::vector<int>>(theBranchName, h); return h;}
-         else if (typeName == "vector<long int>") {BookHistoAction<std::vector<long int>>(theBranchName, h); return h;}
-         else if (typeName == "vector<unsigned char>") {BookHistoAction<std::vector<unsigned char>>(theBranchName, h); return h;}
-         else if (typeName == "vector<unsigned short>") {BookHistoAction<std::vector<unsigned short>>(theBranchName, h); return h;}
-         else if (typeName == "vector<unsigned int>") {BookHistoAction<std::vector<unsigned int>>(theBranchName, h); return h;}
-         else if (typeName == "vector<unsigned long int>") {BookHistoAction<std::vector<unsigned long int>>(theBranchName, h);
-         return h; return h;}
+         // else if (typeName == "vector<long int>") {BookHistoAction<std::vector<long int>>(theBranchName, h); return h;}
+         // else if (typeName == "vector<unsigned char>") {BookHistoAction<std::vector<unsigned char>>(theBranchName, h); return h;}
+         // else if (typeName == "vector<unsigned short>") {BookHistoAction<std::vector<unsigned short>>(theBranchName, h); return h;}
+         // else if (typeName == "vector<unsigned int>") {BookHistoAction<std::vector<unsigned int>>(theBranchName, h); return h;}
+         // else if (typeName == "vector<unsigned long int>") {BookHistoAction<std::vector<unsigned long int>>(theBranchName, h); return h; }
       }
       BookHistoAction<T>(theBranchName, h);
       return h;
@@ -446,6 +471,10 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
          fLastResult = GetValueHelper(f_arg_types(), f_arg_ind(), entry);
       fLastCheckedEntry = entry;
       return fLastResult;
+   }
+
+   const std::type_info& GetTypeId() const {
+      return typeid(ret_t);
    }
 
    void BookAction(ActionBasePtr ptr) {
@@ -610,8 +639,20 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
       return fDefaultBranches;
    }
 
+   const TDataFrameBranchBase& GetBookedBranch(const std::string& name) const {
+      return *fBookedBranches.find(name)->second.get();
+   }
+
    void* GetTmpBranchValue(const std::string& branch, int entry) {
       return fBookedBranches.at(branch)->GetValue(entry);
+   }
+
+   TDirectory* GetDirectory() const {
+      return fDirPtr;
+   }
+
+   std::string GetTreeName() const {
+      return fTreeName;
    }
 
    private:

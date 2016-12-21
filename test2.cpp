@@ -164,3 +164,5 @@ int main() {
 
    return 0;
 }
+
+void test2(){main();}
