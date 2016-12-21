@@ -43,14 +43,20 @@ void FillTree(const char* filename, const char* treeName) {
    double b1;
    int b2;
    std::vector<FourVector> tracks;
+   std::vector<double> dv {1,2,3,4};
+   std::list<int> sl {1,2,3,4};
    t.Branch("b1", &b1);
    t.Branch("b2", &b2);
    t.Branch("tracks", &tracks);
+   t.Branch("dv", &dv);
+   t.Branch("sl", &sl);
 
    for(auto i : ROOT::TSeqI(20)) {
       b1 = i;
       b2 = i*i;
       getTracks(tracks);
+      dv.emplace_back(i);
+      sl.emplace_back(i);
       t.Fill();
    }
    t.Write();
@@ -123,9 +129,15 @@ int main() {
    CheckRes(c4v,1U,"Non trivial test");
 
    // TEST 6: Create a histogram
-   TDataFrame d5(treeName, &f);
-   auto h = d5.Histo("b1");
-   std::cout << "Histo: nEntries " << h->GetEntries() << std::endl;
+   TDataFrame d5(treeName, &f, {"b2"});
+   auto h1 = d5.Histo();
+   auto h2 = d5.Histo("b1");
+   auto h3 = d5.Histo("dv");
+   auto h4 = d5.Histo<std::list<int>>("sl");
+   std::cout << "Histo1: nEntries " << h1->GetEntries() << std::endl;
+   std::cout << "Histo2: nEntries " << h2->GetEntries() << std::endl;
+   std::cout << "Histo3: nEntries " << h3->GetEntries() << std::endl;
+   std::cout << "Histo4: nEntries " << h4->GetEntries() << std::endl;
 
    return 0;
 }

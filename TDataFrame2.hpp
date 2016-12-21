@@ -13,6 +13,7 @@
 #include <string>
 #include <memory>
 #include <tuple>
+#include "TBranchElement.h"
 #include "TTreeReaderValue.h"
 #include "TTreeReader.h"
 
@@ -210,6 +211,44 @@ class TDataFrameAction : public TDataFrameActionBase {
 template<typename FilterF, typename PrevDataFrame>
 class TDataFrameFilter;
 
+template<typename T>
+struct IsContainer{
+    typedef typename std::remove_const<T>::type test_type;
+
+    template<typename A>
+    static constexpr bool test(
+        A * pt,
+        A const * cpt = nullptr,
+        decltype(pt->begin()) * = nullptr,
+        decltype(pt->end()) * = nullptr,
+        decltype(cpt->begin()) * = nullptr,
+        decltype(cpt->end()) * = nullptr,
+        typename A::iterator * pi = nullptr,
+        typename A::const_iterator * pci = nullptr,
+        typename A::value_type * pv = nullptr) {
+
+        typedef typename A::iterator iterator;
+        typedef typename A::const_iterator const_iterator;
+        typedef typename A::value_type value_type;
+        return  std::is_same<T, std::vector<bool>>::value ||
+                (std::is_same<decltype(pt->begin()),iterator>::value &&
+                std::is_same<decltype(pt->end()),iterator>::value &&
+                std::is_same<decltype(cpt->begin()),const_iterator>::value &&
+                std::is_same<decltype(cpt->end()),const_iterator>::value &&
+                std::is_same<decltype(**pi),value_type &>::value &&
+                std::is_same<decltype(**pci),value_type const &>::value);
+
+    }
+
+    template<typename A>
+    static constexpr bool test(...) {
+        return false;
+    }
+
+    static const bool value = test<test_type>(nullptr);
+
+};
+
 
 // this class provides a common public interface to TDataFrame and TDataFrameFilter
 // it contains the Filter call and all action calls
@@ -253,11 +292,42 @@ class TDataFrameInterface {
          throw std::runtime_error(msg);
          }
       }
-
-      ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), fDerivedPtr->GetDataFrame());
+      auto& df = fDerivedPtr->GetDataFrame();
+      ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), df);
       // TODO: Here we need a proper switch to select at runtime the right type
+      auto tree = (TTree*) df.fDirPtr->Get(df.fTreeName.c_str());
+      auto branch = tree->GetBranch(theBranchName.c_str());
+      auto branchEl = dynamic_cast<TBranchElement*>(branch);
+      if (!branchEl) { // This is a fundamental type
+         auto title = branch->GetTitle();
+         auto typeCode = title[strlen(title)-1];
+         if (typeCode == 'B') {BookHistoAction<char>(theBranchName, h); return h;}
+         else if (typeCode == 'b') {BookHistoAction<unsigned char>(theBranchName, h); return h;}
+         else if (typeCode == 'S') {BookHistoAction<short>(theBranchName, h); return h;}
+         else if (typeCode == 's') {BookHistoAction<unsigned short>(theBranchName, h); return h;}
+         else if (typeCode == 'I') {BookHistoAction<int>(theBranchName, h); return h;}
+         else if (typeCode == 'i') {BookHistoAction<unsigned int>(theBranchName, h); return h;}
+         else if (typeCode == 'F') {BookHistoAction<float>(theBranchName, h); return h;}
+         else if (typeCode == 'D') {BookHistoAction<double>(theBranchName, h); return h;}
+         else if (typeCode == 'L') {BookHistoAction<long int>(theBranchName, h); return h;}
+         else if (typeCode == 'l') {BookHistoAction<unsigned long int>(theBranchName, h); return h;}
+         else if (typeCode == 'O') {BookHistoAction<bool>(theBranchName, h); return h;}
+      } else {
+         std::string typeName = branchEl->GetTypeName();
+         if (typeName == "vector<double>") {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
+         else if (typeName == "vector<float>") {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
+         else if (typeName == "vector<bool>") {BookHistoAction<std::vector<bool>>(theBranchName, h); return h;}
+         else if (typeName == "vector<char>") {BookHistoAction<std::vector<char>>(theBranchName, h); return h;}
+         else if (typeName == "vector<short>") {BookHistoAction<std::vector<short>>(theBranchName, h); return h;}
+         else if (typeName == "vector<int>") {BookHistoAction<std::vector<int>>(theBranchName, h); return h;}
+         else if (typeName == "vector<long int>") {BookHistoAction<std::vector<long int>>(theBranchName, h); return h;}
+         else if (typeName == "vector<unsigned char>") {BookHistoAction<std::vector<unsigned char>>(theBranchName, h); return h;}
+         else if (typeName == "vector<unsigned short>") {BookHistoAction<std::vector<unsigned short>>(theBranchName, h); return h;}
+         else if (typeName == "vector<unsigned int>") {BookHistoAction<std::vector<unsigned int>>(theBranchName, h); return h;}
+         else if (typeName == "vector<unsigned long int>") {BookHistoAction<std::vector<unsigned long int>>(theBranchName, h);
+         return h; return h;}
+      }
       BookHistoAction<T>(theBranchName, h);
-
       return h;
    }
 
@@ -265,14 +335,32 @@ class TDataFrameInterface {
    Derived* fDerivedPtr;
 
    private:
+   template<typename T, bool IsCont>
+   class FillAction{
+      TH1F* fHist;
+   public:
+      FillAction(TH1F* h):fHist(h){};
+      void Fill(T v){fHist->Fill(v); }
+   };
+
+   template<typename T>
+   class FillAction<T,true>{
+      TH1F* fHist;
+   public:
+      FillAction(TH1F* h):fHist(h){};
+      void Fill(T vs){for (auto&& v : vs) {fHist->Fill(v);} }
+   };
    template<typename T, typename HistResult>
    void BookHistoAction(const std::string& theBranchName, HistResult& h){
-      auto fillAction = [&h](T v) -> void { auto hv = h.getUnchecked(); hv->Fill(v.GetEntries()); };
+      auto hv = h.getUnchecked();
+      FillAction<T, IsContainer<T>::value> fa(hv);
+      auto fillAction = [fa](T v) mutable { fa.Fill(v); };
       BranchList bl = {theBranchName};
       BookAction(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction,
                                                                                    bl,
                                                                                    *fDerivedPtr));
    }
+
    virtual void BookAction(ActionBasePtr ptr) = 0;
    virtual void BookFilter(FilterBasePtr ptr) = 0;
    virtual TDataFrame& GetDataFrame() const = 0;
@@ -353,6 +441,7 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
    template<typename A, typename B> friend class TDataFrameAction;
    template<typename A, typename B> friend class TDataFrameFilter;
    friend ActionResultPtrBase;
+   friend class TDataFrameInterface<TDataFrame>;
 
    public:
    TDataFrame(const std::string& treeName, TDirectory* dirPtr, const BranchList& defaultBranches = {})
