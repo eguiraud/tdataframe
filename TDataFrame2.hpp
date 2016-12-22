@@ -303,7 +303,7 @@ class TDataFrameInterface {
    auto AddBranch(const std::string& name, F expression, const BranchList& bl = {}) -> TDataFrameBranch<F, Derived> {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::ShouldUseDefaultBranches(expression, bl, defBl);
-      auto BranchPtr = std::make_shared<TDataFrameBranch<F, Derived>>(name, expression, bl, *fDerivedPtr);
+      auto BranchPtr = std::make_shared<TDataFrameBranch<F, Derived>>(name, expression, actualBl, *fDerivedPtr);
       BookBranch(BranchPtr);
       return *BranchPtr;
    }

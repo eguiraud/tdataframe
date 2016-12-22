@@ -147,14 +147,13 @@ int main() {
    CheckRes(c6v, 10U, "AddBranch");
 
    // TEST 8: AddBranch with default branches, filters, non-trivial types
-   TDataFrame d7(treeName, &f, {"b2"});
-   auto dd7 = d7.Filter([](int b2) { return b2 % 2 == 0; })
+   TDataFrame d7(treeName, &f, {"tracks"});
+   auto dd7 = d7.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
                 .AddBranch("ptsum", [](FourVectors const & tracks) {
                    double sum = 0;
                    for(auto& track: tracks)
                      sum += track.Pt();
-                   return sum;
-                  }, {"tracks"});
+                   return sum; });
    auto c7 = dd7.Count();
    auto h7 = dd7.Histo<double>("ptsum");
    auto c7v = *c7.get();
