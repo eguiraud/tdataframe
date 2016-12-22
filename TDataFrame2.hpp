@@ -160,7 +160,7 @@ const BranchList& ShouldUseDefaultBranches(F f, const BranchList& bl, const Bran
 
 
 class TDataFrameActionBase {
-   public:
+public:
    void Run(int entry) {
       // check if entry passes all filters
       if(CheckFilters(entry))
@@ -176,7 +176,7 @@ using ActionBaseVec = std::vector<ActionBasePtr>;
 
 
 class TDataFrameFilterBase {
-   public:
+public:
    virtual bool CheckFilters(int entry) = 0;
    virtual void BuildReaderValues(TTreeReader& r) = 0;
    virtual void BookAction(ActionBasePtr ptr) = 0;
@@ -186,7 +186,7 @@ using FilterBaseVec = std::vector<FilterBasePtr>;
 
 
 class TDataFrameBranchBase {
-   public:
+public:
    virtual std::string GetName() const = 0;
    virtual void* GetValue(int entry) = 0;
    virtual const std::type_info& GetTypeId() const = 0;
@@ -239,7 +239,7 @@ class TDataFrameAction : public TDataFrameActionBase {
    using f_arg_types = typename f_traits<F>::arg_types_tuple;
    using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
 
-   public:
+public:
    TDataFrameAction(F f, const BranchList& bl, PrevDataFrame& pd)
       : fAction(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData),
         fTmpBranchList(pd.fTmpBranchList) { }
@@ -266,7 +266,7 @@ class TDataFrameAction : public TDataFrameActionBase {
       fPrevData.BuildReaderValues(r);
    }
 
-   private:
+private:
    F fAction;
    const BranchList fBranchList;
    const BranchList fTmpBranchList;
@@ -287,7 +287,7 @@ class TDataFrameBranch;
 // it contains the Filter call and all action calls
 template<typename Derived>
 class TDataFrameInterface {
-   public:
+public:
    template<typename F>
    auto Filter(F f, const BranchList& bl = {}) -> TDataFrameFilter<F, Derived> {
       ::CheckFilter(f);
@@ -399,10 +399,10 @@ class TDataFrameInterface {
       return h;
    }
 
-   protected:
+protected:
    Derived* fDerivedPtr;
 
-   private:
+private:
    template<typename T, bool IsCont>
    class FillAction{
       TH1F* fHist;
@@ -446,7 +446,7 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
    using ret_t = typename f_traits<F>::ret_t;
    using TDFInterface = TDataFrameInterface<TDataFrameBranch<F, PrevData>>;
 
-   public:
+public:
    TDataFrameBranch(const std::string& name, F expression, const BranchList& bl, PrevData& pd)
       : fName(name), fExpression(expression), fBranchList(bl), fPrevData(pd),
         fFirstData(pd.fFirstData), fTmpBranchList(pd.fTmpBranchList), fLastCheckedEntry(-1) {
@@ -499,10 +499,10 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
 
    std::string GetName() const { return fName; }
 
-   private:
+private:
    template<int...S, typename...types>
-   // FIXME this leaks, use a smart pointer for automatic deletion
    void* GetValueHelper(std::tuple<types...>, seq<S...>, int entry) {
+      // FIXME this leaks, use a smart pointer for automatic deletion
       ret_t* resPtr = new ret_t(fExpression(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranchList, fTmpBranchList, fFirstData)...));
       void* voidPtr = static_cast<void*>(resPtr);
       return voidPtr;
@@ -533,7 +533,7 @@ class TDataFrameFilter
    using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
    using TDFInterface = TDataFrameInterface<TDataFrameFilter<FilterF, PrevDataFrame>>;
 
-   public:
+public:
    TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame& pd)
       : fFilter(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData),
         fLastCheckedEntry(-1), fTmpBranchList(pd.fTmpBranchList), fLastResult(true) {
@@ -544,7 +544,7 @@ class TDataFrameFilter
       return fFirstData;
    }
 
-   private:
+private:
    bool CheckFilters(int entry) {
       if(entry == fLastCheckedEntry) {
          // return cached result
@@ -571,7 +571,6 @@ class TDataFrameFilter
    }
 
    void BuildReaderValues(TTreeReader& r) {
-         std::cout << "BuildReaderValues" << std::endl;
          fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList,
                                              f_arg_types(), f_arg_ind());
          fPrevData.BuildReaderValues(r);
@@ -607,7 +606,7 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
    friend ActionResultPtrBase;
    friend class TDataFrameInterface<TDataFrame>;
 
-   public:
+public:
    TDataFrame(const std::string& treeName, TDirectory* dirPtr, const BranchList& defaultBranches = {})
       : fTreeName(treeName), fDirPtr(dirPtr), fDefaultBranches(defaultBranches),
         fFirstData(*this) {
@@ -660,7 +659,7 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
       return fTreeName;
    }
 
-   private:
+private:
    void BookAction(ActionBasePtr actionPtr) {
       fBookedActions.push_back(actionPtr);
    }
