@@ -241,8 +241,8 @@ class TDataFrameAction : public TDataFrameActionBase {
 
 public:
    TDataFrameAction(F f, const BranchList& bl, PrevDataFrame& pd)
-      : fAction(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData),
-        fTmpBranchList(pd.fTmpBranchList) { }
+      : fAction(f), fBranchList(bl), fTmpBranchList(pd.fTmpBranchList),
+        fPrevData(pd), fFirstData(pd.fFirstData) { }
 
    bool CheckFilters(int entry) {
       return fPrevData.CheckFilters(entry);
@@ -448,8 +448,8 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
 
 public:
    TDataFrameBranch(const std::string& name, F expression, const BranchList& bl, PrevData& pd)
-      : fName(name), fExpression(expression), fBranchList(bl), fPrevData(pd),
-        fFirstData(pd.fFirstData), fTmpBranchList(pd.fTmpBranchList), fLastCheckedEntry(-1) {
+      : fName(name), fExpression(expression), fBranchList(bl), fTmpBranchList(pd.fTmpBranchList),
+        fFirstData(pd.fFirstData), fPrevData(pd), fLastCheckedEntry(-1) {
       TDFInterface::fDerivedPtr = this;
       fTmpBranchList.push_back(name);
    }
@@ -514,9 +514,9 @@ private:
    BranchList fTmpBranchList;
    TVBVec fReaderValues;
    void* fLastResult;
-   int fLastCheckedEntry;
    TDataFrame& fFirstData;
    PrevData& fPrevData;
+   int fLastCheckedEntry;
 };
 
 
@@ -535,8 +535,8 @@ class TDataFrameFilter
 
 public:
    TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame& pd)
-      : fFilter(f), fBranchList(bl), fPrevData(pd), fFirstData(pd.fFirstData),
-        fLastCheckedEntry(-1), fTmpBranchList(pd.fTmpBranchList), fLastResult(true) {
+      : fFilter(f), fBranchList(bl), fTmpBranchList(pd.fTmpBranchList), fPrevData(pd),
+        fFirstData(pd.fFirstData), fLastCheckedEntry(-1), fLastResult(true) {
       TDFInterface::fDerivedPtr = this;
    }
 
