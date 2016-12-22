@@ -1,7 +1,3 @@
-//  TODO
-// - static checks n_args == branchlist.size (template classes over parameter N of std::array?)
-// - implement other actions (the ones that return a TDataFrameFuture)
-// - implement TDataFrameFuture, hide calls to TDataFrame::Run
 #ifndef TDATAFRAME
 #define TDATAFRAME
 
@@ -66,7 +62,45 @@ template<int ...S>
 struct gens<0, S...>{
    typedef seq<S...> type;
 };
-/****************************/
+
+
+// IsContainer check for type T
+template<typename T>
+struct IsContainer{
+   typedef typename std::remove_const<T>::type test_type;
+
+   template<typename A>
+   static constexpr bool test (
+      A * pt,
+      A const * cpt = nullptr,
+      decltype(pt->begin()) * = nullptr,
+      decltype(pt->end()) * = nullptr,
+      decltype(cpt->begin()) * = nullptr,
+      decltype(cpt->end()) * = nullptr,
+      typename A::iterator * pi = nullptr,
+      typename A::const_iterator * pci = nullptr,
+      typename A::value_type * pv = nullptr)
+   {
+      typedef typename A::iterator iterator;
+      typedef typename A::const_iterator const_iterator;
+      typedef typename A::value_type value_type;
+      return  std::is_same<test_type, std::vector<bool>>::value ||
+              (std::is_same<decltype(pt->begin()),iterator>::value &&
+               std::is_same<decltype(pt->end()),iterator>::value &&
+               std::is_same<decltype(cpt->begin()),const_iterator>::value &&
+               std::is_same<decltype(cpt->end()),const_iterator>::value &&
+               std::is_same<decltype(**pi),value_type &>::value &&
+               std::is_same<decltype(**pci),value_type const &>::value);
+   }
+
+   template<typename A>
+   static constexpr bool test(...) {
+      return false;
+   }
+
+   static const bool value = test<test_type>(nullptr);
+};
+/************* meta-utils end ***************/
 
 
 using BranchList = std::vector<std::string>;
@@ -88,8 +122,10 @@ TVBVec BuildReaderValues(TTreeReader& r, const BranchList& bl, const BranchList&
    // corresponding to the i-th branch in bl
    // For temporary branches (declared with AddBranch) a nullptr is created instead
    // S is expected to be a sequence of sizeof...(arg_types) integers
-   // arg_types and S are expanded simultaneously by "..."
-   TVBVec tvb{ isTmpBranch[S] ? nullptr : std::make_shared<TTreeReaderValue<arg_types>>(r, bl.at(S).c_str()) ... };
+   TVBVec tvb{ isTmpBranch[S] ?
+               nullptr :
+               std::make_shared<TTreeReaderValue<arg_types>>(r, bl.at(S).c_str())
+               ... }; // "..." expands arg_types and S simultaneously
 
    return tvb;
 }
@@ -112,8 +148,8 @@ const BranchList& ShouldUseDefaultBranches(F f, const BranchList& bl, const Bran
       if(bl.size() == 0 && nArgs == defBl.size()) {
          useDefBl = true;
       } else {
-         auto msg = "mismatch between number of filter arguments (" \
-                     + std::to_string(nArgs) + ") and number of branches (" \
+         auto msg = "mismatch between number of filter arguments ("
+                     + std::to_string(nArgs) + ") and number of branches ("
                      + std::to_string(bl.size()?:defBl.size()) + ")";
          throw std::runtime_error(msg);
       }
@@ -239,49 +275,12 @@ class TDataFrameAction : public TDataFrameActionBase {
    TVBVec fReaderValues;
 };
 
+
 // forward declarations for TDataFrameInterface
 template<typename FilterF, typename PrevDataFrame>
 class TDataFrameFilter;
 template<typename FilterF, typename PrevDataFrame>
 class TDataFrameBranch;
-
-template<typename T>
-struct IsContainer{
-    typedef typename std::remove_const<T>::type test_type;
-
-    template<typename A>
-    static constexpr bool test(
-        A * pt,
-        A const * cpt = nullptr,
-        decltype(pt->begin()) * = nullptr,
-        decltype(pt->end()) * = nullptr,
-        decltype(cpt->begin()) * = nullptr,
-        decltype(cpt->end()) * = nullptr,
-        typename A::iterator * pi = nullptr,
-        typename A::const_iterator * pci = nullptr,
-        typename A::value_type * pv = nullptr) {
-
-        typedef typename A::iterator iterator;
-        typedef typename A::const_iterator const_iterator;
-        typedef typename A::value_type value_type;
-        return  std::is_same<test_type, std::vector<bool>>::value ||
-                (std::is_same<decltype(pt->begin()),iterator>::value &&
-                 std::is_same<decltype(pt->end()),iterator>::value &&
-                 std::is_same<decltype(cpt->begin()),const_iterator>::value &&
-                 std::is_same<decltype(cpt->end()),const_iterator>::value &&
-                 std::is_same<decltype(**pi),value_type &>::value &&
-                 std::is_same<decltype(**pci),value_type const &>::value);
-
-    }
-
-    template<typename A>
-    static constexpr bool test(...) {
-        return false;
-    }
-
-    static const bool value = test<test_type>(nullptr);
-
-};
 
 
 // this class provides a common public interface to TDataFrame and TDataFrameFilter
@@ -300,7 +299,8 @@ class TDataFrameInterface {
    }
 
    template<typename F>
-   auto AddBranch(const std::string& name, F expression, const BranchList& bl = {}) -> TDataFrameBranch<F, Derived> {
+   auto AddBranch(const std::string& name, F expression, const BranchList& bl = {})
+   -> TDataFrameBranch<F, Derived> {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::ShouldUseDefaultBranches(expression, bl, defBl);
       auto BranchPtr = std::make_shared<TDataFrameBranch<F, Derived>>(name, expression, actualBl, *fDerivedPtr);
@@ -329,10 +329,11 @@ class TDataFrameInterface {
       if (theBranchName.empty()) {
          // Try the default branch if possible
          const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
-         if (defBl.size() == 1) theBranchName = defBl[0];
-         else {
+         if (defBl.size() == 1) {
+            theBranchName = defBl[0];
+         } else {
             auto msg = "No branch in input to create a histogram and more than one default branch.";
-         throw std::runtime_error(msg);
+            throw std::runtime_error(msg);
          }
       }
       auto& df = fDerivedPtr->GetDataFrame();
@@ -417,15 +418,14 @@ class TDataFrameInterface {
       FillAction(TH1F* h):fHist(h){};
       void Fill(T vs){for (auto&& v : vs) {fHist->Fill(v);} }
    };
+
    template<typename T, typename HistResult>
    void BookHistoAction(const std::string& theBranchName, HistResult& h){
       auto hv = h.getUnchecked();
       FillAction<T, IsContainer<T>::value> fa(hv);
       auto fillAction = [fa](T v) mutable { fa.Fill(v); };
       BranchList bl = {theBranchName};
-      BookAction(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction,
-                                                                                   bl,
-                                                                                   *fDerivedPtr));
+      BookAction(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction, bl, *fDerivedPtr));
    }
 
    virtual void BookAction(ActionBasePtr ptr) = 0;
@@ -436,7 +436,8 @@ class TDataFrameInterface {
 
 
 template<typename F, typename PrevData>
-class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData>>, public TDataFrameBranchBase {
+class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData>>,
+                         public TDataFrameBranchBase {
    template<typename A, typename B> friend class TDataFrameAction;
    template<typename A, typename B> friend class TDataFrameFilter;
    template<typename A, typename B> friend class TDataFrameBranch;
@@ -458,17 +459,19 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
    }
 
    void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList, f_arg_types(), f_arg_ind());
+      fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList,
+                                          f_arg_types(), f_arg_ind());
       fPrevData.BuildReaderValues(r);
    }
 
    void* GetValue(int entry) {
-      if(entry == fLastCheckedEntry)
+      if(entry == fLastCheckedEntry) {
          // return cached result
          return fLastResult;
-      else
+      } else {
          // evaluate this filter, cache the result
          fLastResult = GetValueHelper(f_arg_types(), f_arg_ind(), entry);
+      }
       fLastCheckedEntry = entry;
       return fLastResult;
    }
@@ -489,7 +492,7 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
       fPrevData.BookBranch(ptr);
    }
 
-   // dummy call
+   // dummy call: it just forwards to the previous object in the chain
    bool CheckFilters(int entry) {
       return fPrevData.CheckFilters(entry);
    }
@@ -498,10 +501,11 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
 
    private:
    template<int...S, typename...types>
-   // FIXME use a smart pointer for automatic deletion
+   // FIXME this leaks, use a smart pointer for automatic deletion
    void* GetValueHelper(std::tuple<types...>, seq<S...>, int entry) {
-      void* voidptr = static_cast<void*>(new ret_t(fExpression(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranchList, fTmpBranchList, fFirstData)...)));
-      return voidptr;
+      ret_t* resPtr = new ret_t(fExpression(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranchList, fTmpBranchList, fFirstData)...));
+      void* voidPtr = static_cast<void*>(resPtr);
+      return voidPtr;
    }
 
    const std::string fName;
@@ -563,12 +567,13 @@ class TDataFrameFilter
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      return fFilter(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranchList, fTmpBranchList, fFirstData) ...);
+      return fFilter( ::GetBranchValue<S, types>(fReaderValues[S], entry, fBranchList, fTmpBranchList, fFirstData) ...);
    }
 
    void BuildReaderValues(TTreeReader& r) {
          std::cout << "BuildReaderValues" << std::endl;
-         fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList, f_arg_types(), f_arg_ind());
+         fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList,
+                                             f_arg_types(), f_arg_ind());
          fPrevData.BuildReaderValues(r);
       }
 
@@ -690,13 +695,18 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
    std::string fTreeName;
    TDirectory* fDirPtr;
    const BranchList fDefaultBranches;
-   const BranchList fTmpBranchList; // always empty, it's here because next objects in the tree will look for it to build their own TmpBranchList
+   // always empty: each object in the chain copies this list from the previous
+   // and they must copy an empty list from the base TDataFrame
+   const BranchList fTmpBranchList;
    TDataFrame& fFirstData;
 };
 
 
+//********* FUNCTION AND METHOD DEFINITIONS *********//
 template<int S, typename T>
-T GetBranchValue(TVBPtr& readerValue, int entry, const BranchList& bl, const BranchList& tmpbl, TDataFrame& df) {
+T GetBranchValue(TVBPtr& readerValue, int entry, const BranchList& bl,
+                 const BranchList& tmpbl, TDataFrame& df)
+{
    if(std::find(tmpbl.begin(), tmpbl.end(), bl[S]) != tmpbl.end()) {
       void* tmpBranchVal = df.GetTmpBranchValue(bl[S], entry);
       return *static_cast<T*>(tmpBranchVal);
@@ -707,9 +717,9 @@ T GetBranchValue(TVBPtr& readerValue, int entry, const BranchList& bl, const Bra
 }
 
 
-// Implementation of methods
 void ActionResultPtrBase::TriggerRun() {fFirstData.Run();}
-ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData):fFirstData(firstData){
+ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData):fFirstData(firstData)
+{
    firstData.RegisterActionResult(this);
 }
 
