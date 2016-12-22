@@ -17,7 +17,10 @@
 
 /******* meta-utils **********/
 // Remove const and ref
-template<typename T> struct removeConstAndRef{ using type = typename std::remove_const<typename std::remove_reference<T>::type>::type;};
+template<typename T>
+struct removeConstAndRef {
+   using type = typename std::remove_const<typename std::remove_reference<T>::type>::type;
+};
 
 template <typename... Args> struct removeCRFromTupleElements;
 
@@ -109,7 +112,9 @@ using TVBVec = std::vector<TVBPtr>;
 
 
 template<int... S, typename... arg_types>
-TVBVec BuildReaderValues(TTreeReader& r, const BranchList& bl, const BranchList& tmpbl, std::tuple<arg_types...>, seq<S...>) {
+TVBVec BuildReaderValues(TTreeReader& r, const BranchList& bl,
+   const BranchList& tmpbl, std::tuple<arg_types...>, seq<S...>)
+{
    // isTmpBranch has length bl.size(). Elements are true if the corresponding
    // branch is a "fake" branch created with AddBranch, false if they are
    // actual branches present in the TTree.
