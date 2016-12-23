@@ -19,7 +19,7 @@
 #include "TTree.h"
 #include "ROOT/TSeq.hxx"
 
-#include "TDataFrame.hpp"
+#include "TDataFrame_old.hpp"
 
 // A simple helper function to fill a test tree: this makes the example 
 // stand-alone.
