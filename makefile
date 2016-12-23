@@ -1,8 +1,8 @@
-TARGETS:=tdf001_introduction
+TARGETS:=tdf001_introduction tdf002_dataModel test2
 
 all: $(TARGETS)
 
-tdf001_introduction: tdf001_introduction.C TDataFrame.hpp; \
+%: %.cxx TDataFrame.hxx; \
    g++ -std=c++11 -o $@ $< `root-config --libs --cflags` -lTreePlayer
 
 .PHONY: clean
