@@ -192,6 +192,7 @@ using FilterBaseVec = std::vector<FilterBasePtr>;
 
 class TDataFrameBranchBase {
 public:
+   virtual void BuildReaderValues(TTreeReader& r) = 0;
    virtual std::string GetName() const = 0;
    virtual void* GetValue(int entry) = 0;
    virtual const std::type_info& GetTypeId() const = 0;
@@ -268,7 +269,6 @@ public:
 
    void BuildReaderValues(TTreeReader& r) {
       fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList, f_arg_types(), f_arg_ind());
-      fPrevData.BuildReaderValues(r);
    }
 
 private:
@@ -466,7 +466,6 @@ public:
    void BuildReaderValues(TTreeReader& r) {
       fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList,
                                           f_arg_types(), f_arg_ind());
-      fPrevData.BuildReaderValues(r);
    }
 
    void* GetValue(int entry) {
@@ -576,12 +575,11 @@ private:
    }
 
    void BuildReaderValues(TTreeReader& r) {
-         fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList,
-                                             f_arg_types(), f_arg_ind());
-         fPrevData.BuildReaderValues(r);
-      }
+      fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList,
+                                          f_arg_types(), f_arg_ind());
+   }
 
-      void BookAction(ActionBasePtr ptr) {
+   void BookAction(ActionBasePtr ptr) {
       fPrevData.BookAction(ptr);
    }
 
@@ -621,9 +619,13 @@ public:
    void Run() {
       TTreeReader r(fTreeName.c_str(), fDirPtr);
 
-      // recursive call to all actions and filters
-      for(auto actionPtr : fBookedActions)
-         actionPtr->BuildReaderValues(r);
+      // build reader values for all actions, filters and branches
+      for(auto ptr : fBookedActions)
+         ptr->BuildReaderValues(r);
+      for(auto ptr : fBookedFilters)
+         ptr->BuildReaderValues(r);
+      for(auto bookedBranch : fBookedBranches)
+         bookedBranch.second->BuildReaderValues(r);
 
       // recursive call to check filters and conditionally executing actions
       while(r.Next())
@@ -633,11 +635,11 @@ public:
       // forget everything
       fBookedActions.clear();
       fBookedFilters.clear();
+      fBookedBranches.clear();
       for (auto aptr : fActionResultsPtrs) {
          aptr->SetReady();
       }
       fActionResultsPtrs.clear();
-
    }
 
    TDataFrame& GetDataFrame() const {
@@ -680,11 +682,6 @@ private:
    // dummy call, end of recursive chain
    bool CheckFilters(int) {
       return true;
-   }
-
-   // dummy call, end of recursive chain
-   void BuildReaderValues(TTreeReader&) {
-      return;
    }
 
    // register a ActionResultPtr
