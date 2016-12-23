@@ -251,6 +251,7 @@ public:
         fPrevData(pd), fFirstData(pd.fFirstData) { }
 
    bool CheckFilters(int entry) {
+      // start the recursive chain of CheckFilters calls
       return fPrevData.CheckFilters(entry);
    }
 
@@ -496,8 +497,8 @@ public:
       fPrevData.BookBranch(ptr);
    }
 
-   // dummy call: it just forwards to the previous object in the chain
    bool CheckFilters(int entry) {
+      // dummy call: it just forwards to the previous object in the chain
       return fPrevData.CheckFilters(entry);
    }
 
@@ -679,7 +680,7 @@ private:
       fBookedBranches[branchPtr->GetName()] = branchPtr;
    }
 
-   // dummy call, end of recursive chain
+   // dummy call, end of recursive chain of calls
    bool CheckFilters(int) {
       return true;
    }
