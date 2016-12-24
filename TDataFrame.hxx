@@ -145,7 +145,9 @@ void CheckFilter(Filter f) {
 
 
 template<typename F>
-const BranchList& ShouldUseDefaultBranches(F f, const BranchList& bl, const BranchList& defBl) {
+const BranchList& PickBranchList(F f, const BranchList& bl, const BranchList& defBl) {
+   // return local BranchList or default BranchList according to which one
+   // should be used
    using ArgsTuple = typename f_traits<F>::arg_types_tuple;
    auto nArgs = std::tuple_size<ArgsTuple>::value;
    bool useDefBl = false;
@@ -247,7 +249,7 @@ class TDataFrameAction : public TDataFrameActionBase {
 
 public:
    TDataFrameAction(F f, const BranchList& bl, PrevDataFrame& pd)
-      : fAction(f), fBranchList(bl), fTmpBranchList(pd.fTmpBranchList),
+      : fAction(f), fBranches(bl), fTmpBranches(pd.fTmpBranches),
         fPrevData(pd), fFirstData(pd.fFirstData) { }
 
    bool CheckFilters(int entry) {
@@ -265,17 +267,17 @@ public:
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      fAction(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranchList, fTmpBranchList, fFirstData)...);
+      fAction(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData)...);
    }
 
    void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList, f_arg_types(), f_arg_ind());
+      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches, f_arg_types(), f_arg_ind());
    }
 
 private:
    F fAction;
-   const BranchList fBranchList;
-   const BranchList fTmpBranchList;
+   const BranchList fBranches;
+   const BranchList fTmpBranches;
    PrevDataFrame& fPrevData;
    TDataFrame& fFirstData;
    TVBVec fReaderValues;
@@ -298,7 +300,7 @@ public:
    auto Filter(F f, const BranchList& bl = {}) -> TDataFrameFilter<F, Derived>& {
       ::CheckFilter(f);
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
-      const BranchList& actualBl = ::ShouldUseDefaultBranches(f, bl, defBl);
+      const BranchList& actualBl = ::PickBranchList(f, bl, defBl);
       auto DFFilterPtr = std::make_shared<TDataFrameFilter<F, Derived>>(f, actualBl, *fDerivedPtr);
       BookFilter(DFFilterPtr);
       return *DFFilterPtr;
@@ -308,7 +310,7 @@ public:
    auto AddBranch(const std::string& name, F expression, const BranchList& bl = {})
    -> TDataFrameBranch<F, Derived>& {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
-      const BranchList& actualBl = ::ShouldUseDefaultBranches(expression, bl, defBl);
+      const BranchList& actualBl = ::PickBranchList(expression, bl, defBl);
       auto BranchPtr = std::make_shared<TDataFrameBranch<F, Derived>>(name, expression, actualBl, *fDerivedPtr);
       BookBranch(BranchPtr);
       return *BranchPtr;
@@ -317,7 +319,7 @@ public:
    template<typename F>
    void Foreach(F f, const BranchList& bl = {}) {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
-      const BranchList& actualBl = ::ShouldUseDefaultBranches(f, bl, defBl);
+      const BranchList& actualBl = ::PickBranchList(f, bl, defBl);
       BookAction(std::make_shared<TDataFrameAction<F, Derived>>(f, actualBl, *fDerivedPtr));
    }
 
@@ -454,10 +456,10 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
 
 public:
    TDataFrameBranch(const std::string& name, F expression, const BranchList& bl, PrevData& pd)
-      : fName(name), fExpression(expression), fBranchList(bl), fTmpBranchList(pd.fTmpBranchList),
+      : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.fTmpBranches),
         fFirstData(pd.fFirstData), fPrevData(pd), fLastCheckedEntry(-1) {
       TDFInterface::fDerivedPtr = this;
-      fTmpBranchList.push_back(name);
+      fTmpBranches.push_back(name);
    }
 
    TDataFrame& GetDataFrame() const {
@@ -465,7 +467,7 @@ public:
    }
 
    void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList,
+      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches,
                                           f_arg_types(), f_arg_ind());
    }
 
@@ -508,15 +510,15 @@ private:
    template<int...S, typename...types>
    void* GetValueHelper(std::tuple<types...>, seq<S...>, int entry) {
       // FIXME this leaks, use a smart pointer for automatic deletion
-      ret_t* resPtr = new ret_t(fExpression(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranchList, fTmpBranchList, fFirstData)...));
+      ret_t* resPtr = new ret_t(fExpression(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData)...));
       void* voidPtr = static_cast<void*>(resPtr);
       return voidPtr;
    }
 
    const std::string fName;
    F fExpression;
-   const BranchList fBranchList;
-   BranchList fTmpBranchList;
+   const BranchList fBranches;
+   BranchList fTmpBranches;
    TVBVec fReaderValues;
    void* fLastResult;
    TDataFrame& fFirstData;
@@ -540,7 +542,7 @@ class TDataFrameFilter
 
 public:
    TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame& pd)
-      : fFilter(f), fBranchList(bl), fTmpBranchList(pd.fTmpBranchList), fPrevData(pd),
+      : fFilter(f), fBranches(bl), fTmpBranches(pd.fTmpBranches), fPrevData(pd),
         fFirstData(pd.fFirstData), fLastCheckedEntry(-1), fLastResult(true) {
       TDFInterface::fDerivedPtr = this;
    }
@@ -572,11 +574,11 @@ private:
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      return fFilter( ::GetBranchValue<S, types>(fReaderValues[S], entry, fBranchList, fTmpBranchList, fFirstData) ...);
+      return fFilter( ::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData) ...);
    }
 
    void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranchList, fTmpBranchList,
+      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches,
                                           f_arg_types(), f_arg_ind());
    }
 
@@ -593,8 +595,8 @@ private:
    }
 
    FilterF fFilter;
-   const BranchList fBranchList;
-   const BranchList fTmpBranchList;
+   const BranchList fBranches;
+   const BranchList fTmpBranches;
    PrevDataFrame& fPrevData;
    TDataFrame& fFirstData;
    TVBVec fReaderValues;
@@ -699,7 +701,7 @@ private:
    const BranchList fDefaultBranches;
    // always empty: each object in the chain copies this list from the previous
    // and they must copy an empty list from the base TDataFrame
-   const BranchList fTmpBranchList;
+   const BranchList fTmpBranches;
    TDataFrame& fFirstData;
 };
 
