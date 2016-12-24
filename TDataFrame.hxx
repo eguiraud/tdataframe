@@ -284,9 +284,9 @@ private:
 
 
 // forward declarations for TDataFrameInterface
-template<typename FilterF, typename PrevDataFrame>
+template<typename F, typename PrevData>
 class TDataFrameFilter;
-template<typename FilterF, typename PrevDataFrame>
+template<typename F, typename PrevData>
 class TDataFrameBranch;
 
 
@@ -704,8 +704,13 @@ T GetBranchValue(TVBPtr& readerValue, int entry, const BranchList& bl,
 }
 
 
-void ActionResultPtrBase::TriggerRun() {fFirstData.Run();}
-ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData):fFirstData(firstData)
+void ActionResultPtrBase::TriggerRun()
+{
+   fFirstData.Run();
+}
+
+
+ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData) : fFirstData(firstData)
 {
    firstData.RegisterActionResult(this);
 }
