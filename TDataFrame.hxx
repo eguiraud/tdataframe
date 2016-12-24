@@ -186,7 +186,6 @@ class TDataFrameFilterBase {
 public:
    virtual bool CheckFilters(int entry) = 0;
    virtual void BuildReaderValues(TTreeReader& r) = 0;
-   virtual void BookAction(ActionBasePtr ptr) = 0;
 };
 using FilterBasePtr = std::shared_ptr<TDataFrameFilterBase>;
 using FilterBaseVec = std::vector<FilterBasePtr>;
@@ -302,7 +301,7 @@ public:
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(f, bl, defBl);
       auto DFFilterPtr = std::make_shared<TDataFrameFilter<F, Derived>>(f, actualBl, *fDerivedPtr);
-      BookFilter(DFFilterPtr);
+      Book(DFFilterPtr);
       return *DFFilterPtr;
    }
 
@@ -312,7 +311,7 @@ public:
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(expression, bl, defBl);
       auto BranchPtr = std::make_shared<TDataFrameBranch<F, Derived>>(name, expression, actualBl, *fDerivedPtr);
-      BookBranch(BranchPtr);
+      Book(BranchPtr);
       return *BranchPtr;
    }
 
@@ -320,14 +319,14 @@ public:
    void Foreach(F f, const BranchList& bl = {}) {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(f, bl, defBl);
-      BookAction(std::make_shared<TDataFrameAction<F, Derived>>(f, actualBl, *fDerivedPtr));
+      Book(std::make_shared<TDataFrameAction<F, Derived>>(f, actualBl, *fDerivedPtr));
    }
 
    ActionResultPtr<unsigned> Count() {
       ActionResultPtr<unsigned> c (new unsigned(0), fDerivedPtr->GetDataFrame());
       auto countAction = [&c]() -> void { (*c.getUnchecked())++; };
       BranchList bl = {};
-      BookAction(std::make_shared<TDataFrameAction<decltype(countAction), Derived>>(countAction, bl, *fDerivedPtr));
+      Book(std::make_shared<TDataFrameAction<decltype(countAction), Derived>>(countAction, bl, *fDerivedPtr));
       return c;
    }
 
@@ -433,12 +432,14 @@ private:
       FillAction<T, IsContainer<T>::value> fa(hv);
       auto fillAction = [fa](T v) mutable { fa.Fill(v); };
       BranchList bl = {theBranchName};
-      BookAction(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction, bl, *fDerivedPtr));
+      Book(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction, bl, *fDerivedPtr));
    }
 
-   virtual void BookAction(ActionBasePtr ptr) = 0;
-   virtual void BookFilter(FilterBasePtr ptr) = 0;
-   virtual void BookBranch(TmpBranchBasePtr ptr) = 0;
+   template<typename T>
+   void Book(std::shared_ptr<T> ptr) {
+      fDerivedPtr->Book(ptr);
+   }
+
    virtual TDataFrame& GetDataFrame() const = 0;
 };
 
@@ -487,17 +488,8 @@ public:
       return typeid(ret_t);
    }
 
-   void BookAction(ActionBasePtr ptr) {
-      fPrevData.BookAction(ptr);
-   }
-
-   void BookFilter(FilterBasePtr ptr) {
-      fPrevData.BookFilter(ptr);
-   }
-
-   void BookBranch(TmpBranchBasePtr ptr) {
-      fPrevData.BookBranch(ptr);
-   }
+   template<typename T>
+   void Book(std::shared_ptr<T> ptr);
 
    bool CheckFilters(int entry) {
       // dummy call: it just forwards to the previous object in the chain
@@ -582,17 +574,8 @@ private:
                                           f_arg_types(), f_arg_ind());
    }
 
-   void BookAction(ActionBasePtr ptr) {
-      fPrevData.BookAction(ptr);
-   }
-
-   void BookFilter(FilterBasePtr ptr) {
-      fPrevData.BookFilter(ptr);
-   }
-
-   void BookBranch(TmpBranchBasePtr ptr) {
-      fPrevData.BookBranch(ptr);
-   }
+   template<typename T>
+   void Book(std::shared_ptr<T> ptr);
 
    FilterF fFilter;
    const BranchList fBranches;
@@ -670,15 +653,15 @@ public:
    }
 
 private:
-   void BookAction(ActionBasePtr actionPtr) {
+   void Book(ActionBasePtr actionPtr) {
       fBookedActions.push_back(actionPtr);
    }
 
-   void BookFilter(FilterBasePtr filterPtr) {
+   void Book(FilterBasePtr filterPtr) {
       fBookedFilters.push_back(filterPtr);
    }
 
-   void BookBranch(TmpBranchBasePtr branchPtr) {
+   void Book(TmpBranchBasePtr branchPtr) {
       fBookedBranches[branchPtr->GetName()] = branchPtr;
    }
 
@@ -725,6 +708,21 @@ void ActionResultPtrBase::TriggerRun() {fFirstData.Run();}
 ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData):fFirstData(firstData)
 {
    firstData.RegisterActionResult(this);
+}
+
+
+// N.B. these methods could be unified and put in TDataFrameInterface, if I
+// could find a way to make it compile
+template<typename F, typename PrevData>
+template<typename T>
+void TDataFrameFilter<F, PrevData>::Book(std::shared_ptr<T> ptr) {
+   fFirstData.Book(ptr);
+}
+
+template<typename F, typename PrevData>
+template<typename T>
+void TDataFrameBranch<F, PrevData>::Book(std::shared_ptr<T> ptr) {
+   fFirstData.Book(ptr);
 }
 
 #endif //TDATAFRAME
