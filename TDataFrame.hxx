@@ -295,6 +295,8 @@ class TDataFrameBranch;
 template<typename Derived>
 class TDataFrameInterface {
 public:
+   TDataFrameInterface() : fDerivedPtr(static_cast<Derived*>(this)) { }
+
    template<typename F>
    auto Filter(F f, const BranchList& bl = {}) -> TDataFrameFilter<F, Derived>& {
       ::CheckFilter(f);
@@ -406,9 +408,6 @@ public:
       return h;
    }
 
-protected:
-   Derived* fDerivedPtr;
-
 private:
    template<typename T, bool IsCont>
    class FillAction{
@@ -441,6 +440,8 @@ private:
    }
 
    virtual TDataFrame& GetDataFrame() const = 0;
+
+   Derived* fDerivedPtr;
 };
 
 
@@ -459,7 +460,6 @@ public:
    TDataFrameBranch(const std::string& name, F expression, const BranchList& bl, PrevData& pd)
       : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.fTmpBranches),
         fFirstData(pd.fFirstData), fPrevData(pd), fLastCheckedEntry(-1) {
-      TDFInterface::fDerivedPtr = this;
       fTmpBranches.push_back(name);
    }
 
@@ -535,9 +535,7 @@ class TDataFrameFilter
 public:
    TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame& pd)
       : fFilter(f), fBranches(bl), fTmpBranches(pd.fTmpBranches), fPrevData(pd),
-        fFirstData(pd.fFirstData), fLastCheckedEntry(-1), fLastResult(true) {
-      TDFInterface::fDerivedPtr = this;
-   }
+        fFirstData(pd.fFirstData), fLastCheckedEntry(-1), fLastResult(true) { }
 
    TDataFrame& GetDataFrame() const {
       return fFirstData;
@@ -597,10 +595,8 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
 
 public:
    TDataFrame(const std::string& treeName, TDirectory* dirPtr, const BranchList& defaultBranches = {})
-      : fTreeName(treeName), fDirPtr(dirPtr), fDefaultBranches(defaultBranches),
-        fFirstData(*this) {
-      TDataFrameInterface<TDataFrame>::fDerivedPtr = this;
-   }
+      : fTreeName(treeName), fDirPtr(dirPtr),
+        fDefaultBranches(defaultBranches), fFirstData(*this) { }
 
    void Run() {
       TTreeReader r(fTreeName.c_str(), fDirPtr);
