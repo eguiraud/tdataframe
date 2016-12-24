@@ -4,6 +4,7 @@ make
 RES=$?
 if (( $RES > 0 )); then
    echo "error building tests"
+   exit 1
 fi
 popd
 
