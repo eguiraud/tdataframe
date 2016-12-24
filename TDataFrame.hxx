@@ -168,14 +168,7 @@ const BranchList& PickBranchList(F f, const BranchList& bl, const BranchList& de
 
 class TDataFrameActionBase {
 public:
-   void Run(int entry) {
-      // check if entry passes all filters
-      if(CheckFilters(entry))
-         ExecuteAction(entry);
-   }
-
-   virtual bool CheckFilters(int entry) = 0;
-   virtual void ExecuteAction(int entry) = 0;
+   virtual void Run(int entry) = 0;
    virtual void BuildReaderValues(TTreeReader& r) = 0;
 };
 using ActionBasePtr = std::shared_ptr<TDataFrameActionBase>;
@@ -184,7 +177,6 @@ using ActionBaseVec = std::vector<ActionBasePtr>;
 
 class TDataFrameFilterBase {
 public:
-   virtual bool CheckFilters(int entry) = 0;
    virtual void BuildReaderValues(TTreeReader& r) = 0;
 };
 using FilterBasePtr = std::shared_ptr<TDataFrameFilterBase>;
@@ -250,6 +242,12 @@ public:
    TDataFrameAction(F f, const BranchList& bl, PrevDataFrame& pd)
       : fAction(f), fBranches(bl), fTmpBranches(pd.fTmpBranches),
         fPrevData(pd), fFirstData(pd.fFirstData) { }
+
+   void Run(int entry) {
+      // check if entry passes all filters
+      if(CheckFilters(entry))
+         ExecuteAction(entry);
+   }
 
    bool CheckFilters(int entry) {
       // start the recursive chain of CheckFilters calls
