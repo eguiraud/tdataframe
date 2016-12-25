@@ -295,7 +295,7 @@ template<typename Derived>
 class TDataFrameInterface {
 public:
    template<typename F>
-   auto Filter(F f, const BranchList& bl = {}) -> TDataFrameFilter<F, Derived> {
+   auto Filter(F f, const BranchList& bl = {}) -> TDataFrameFilter<F, Derived>& {
       ::CheckFilter(f);
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::ShouldUseDefaultBranches(f, bl, defBl);
@@ -306,7 +306,7 @@ public:
 
    template<typename F>
    auto AddBranch(const std::string& name, F expression, const BranchList& bl = {})
-   -> TDataFrameBranch<F, Derived> {
+   -> TDataFrameBranch<F, Derived>& {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::ShouldUseDefaultBranches(expression, bl, defBl);
       auto BranchPtr = std::make_shared<TDataFrameBranch<F, Derived>>(name, expression, actualBl, *fDerivedPtr);
