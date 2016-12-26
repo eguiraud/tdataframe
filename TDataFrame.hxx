@@ -541,18 +541,16 @@ public:
 
 private:
    bool CheckFilters(int entry) {
-      if(entry == fLastCheckedEntry) {
-         // return cached result
-         return fLastResult;
+      if(entry != fLastCheckedEntry) {
+         if(!fPrevData.CheckFilters(entry)) {
+            // a filter upstream returned false, cache the result
+            fLastResult = false;
+         } else {
+            // evaluate this filter, cache the result
+            fLastResult = CheckFilterHelper(f_arg_types(), f_arg_ind(), entry);
+         }
+         fLastCheckedEntry = entry;
       }
-      if(!fPrevData.CheckFilters(entry)) {
-         // a filter upstream returned false, cache the result
-         fLastResult = false;
-      } else {
-         // evaluate this filter, cache the result
-         fLastResult = CheckFilterHelper(f_arg_types(), f_arg_ind(), entry);
-      }
-      fLastCheckedEntry = entry;
       return fLastResult;
    }
 
