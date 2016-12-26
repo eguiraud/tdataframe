@@ -471,15 +471,12 @@ public:
    }
 
    void* GetValue(int entry) {
-      if(entry == fLastCheckedEntry) {
-         // return cached result
-         return fLastResult;
-      } else {
+      if(entry != fLastCheckedEntry) {
          // evaluate this filter, cache the result
-         fLastResult = GetValueHelper(f_arg_types(), f_arg_ind(), entry);
+         fLastResultPtr = GetValueHelper(f_arg_types(), f_arg_ind(), entry);
+         fLastCheckedEntry = entry;
       }
-      fLastCheckedEntry = entry;
-      return fLastResult;
+      return static_cast<void*>(fLastResultPtr);
    }
 
    const std::type_info& GetTypeId() const {
@@ -498,11 +495,10 @@ public:
 
 private:
    template<int...S, typename...types>
-   void* GetValueHelper(std::tuple<types...>, seq<S...>, int entry) {
+   ret_t* GetValueHelper(std::tuple<types...>, seq<S...>, int entry) {
       // FIXME this leaks, use a smart pointer for automatic deletion
-      ret_t* resPtr = new ret_t(fExpression(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData)...));
-      void* voidPtr = static_cast<void*>(resPtr);
-      return voidPtr;
+      ret_t* valuePtr = new ret_t(fExpression(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData)...));
+      return valuePtr;
    }
 
    const std::string fName;
@@ -510,7 +506,7 @@ private:
    const BranchList fBranches;
    BranchList fTmpBranches;
    TVBVec fReaderValues;
-   void* fLastResult;
+   ret_t* fLastResultPtr;
    TDataFrame& fFirstData;
    PrevData& fPrevData;
    int fLastCheckedEntry;
