@@ -5,7 +5,7 @@
 
 #include <typeinfo>
 #include <map>
-#include <algorithm>
+#include <algorithm> // std::find
 #include <list>
 #include <vector>
 #include <string>
@@ -128,10 +128,11 @@ TVBVec BuildReaderValues(TTreeReader& r, const BranchList& bl,
    // corresponding to the i-th branch in bl
    // For temporary branches (declared with AddBranch) a nullptr is created instead
    // S is expected to be a sequence of sizeof...(arg_types) integers
-   TVBVec tvb{ isTmpBranch[S] ?
-               nullptr :
-               std::make_shared<TTreeReaderValue<arg_types>>(r, bl.at(S).c_str())
-               ... }; // "..." expands arg_types and S simultaneously
+   TVBVec tvb{
+      isTmpBranch[S] ?
+      nullptr :
+      std::make_shared<TTreeReaderValue<arg_types>>(r, bl.at(S).c_str())
+      ... }; // "..." expands arg_types and S simultaneously
 
    return tvb;
 }
