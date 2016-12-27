@@ -284,6 +284,17 @@ class TDataFrameFilter;
 template<typename F, typename PrevData>
 class TDataFrameBranch;
 
+namespace Operations {
+   class FillOperation{
+      TH1F* fHist;
+   public:
+      FillOperation(TH1F* h):fHist(h){};
+      template<typename T, typename std::enable_if<!IsContainer<T>::value, int>::type = 0>
+      void Exec(T v){fHist->Fill(v); }
+      template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
+      void Exec(const T&  vs){for (auto&& v : vs) {fHist->Fill(v);} }
+   };
+}
 
 // this class provides a common public interface to TDataFrame and TDataFrameFilter
 // it contains the Filter call and all action calls
@@ -337,104 +348,88 @@ public:
    template<typename T = double>
    ActionResultPtr<TH1F> Histo(const std::string& branchName = "", int nBins = 128) {
       auto theBranchName (branchName);
+      GetDefaultBranchName(theBranchName, "fill the histogram");
+      auto& df = fDerivedPtr->GetDataFrame();
+      ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), df);
+      return CreateAction<T, EActionType::kHisto1D>(theBranchName,h);
+   }
+
+private:
+
+   void GetDefaultBranchName(std::string& theBranchName, const std::string& actionNameForErr) {
       if (theBranchName.empty()) {
          // Try the default branch if possible
          const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
          if (defBl.size() == 1) {
             theBranchName = defBl[0];
          } else {
-            auto msg = "No branch in input to create a histogram and more than one default branch.";
+            std::string msg ("No branch in input to ");
+            msg += actionNameForErr;
+            msg +=  " and more than one default branch.";
             throw std::runtime_error(msg);
          }
+      }  
+   }
+
+   enum class EActionType : short {kHisto1D};
+
+   template<typename BranchType, typename ActionResultType, enum EActionType, typename ThisType>
+   struct SimpleAction{
+      static void BuildAndBook(ThisType, const std::string&, ActionResultType&){}
+   };
+
+   template<typename BranchType, typename ThisType>
+   struct SimpleAction<BranchType, ActionResultPtr<TH1F>, TDataFrameInterface<Derived>::EActionType::kHisto1D, ThisType> {
+      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, ActionResultPtr<TH1F>& h){
+         auto hv = h.getUnchecked();
+         Operations::FillOperation fa(hv);
+         auto fillLambda = [fa](BranchType v) mutable { fa.Exec(v); };
+         BranchList bl = {theBranchName};
+         using DFA = TDataFrameAction<decltype(fillLambda), Derived>;
+         thisFrame->Book(std::unique_ptr<DFA>(new DFA(fillLambda, bl, *thisFrame->fDerivedPtr)));
       }
+   };
+   
+   template<typename BranchType, EActionType ActionType, typename ActionResultType>
+   ActionResultType CreateAction(const std::string& theBranchName, ActionResultType& res) {
+      // More types can be added at will at the cost of some compilation time and size of binaries.
+      typedef ActionResultType ART;
+      typedef decltype(this) TT;
+      const auto AT = ActionType;
       auto& df = fDerivedPtr->GetDataFrame();
-      ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), df);
-      // TODO: Here we need a proper switch to select at runtime the right type
       auto tree = (TTree*) df.GetDirectory()->Get(df.GetTreeName().c_str());
       auto branch = tree->GetBranch(theBranchName.c_str());
       if(!branch) {
-         const auto& type_id = df.GetBookedBranch(branchName).GetTypeId();
-         if (type_id == typeid(char)) {BookHistoAction<char>(theBranchName, h); return h;}
-         // else if (type_id == typeid(unsigned char)) {BookHistoAction<unsigned char>(theBranchName, h); return h;}
-         // else if (type_id == typeid(short)) {BookHistoAction<short>(theBranchName, h); return h;}
-         // else if (type_id == typeid(unsigned short)) {BookHistoAction<unsigned short>(theBranchName, h); return h;}
-         else if (type_id == typeid(int)) {BookHistoAction<int>(theBranchName, h); return h;}
-         // else if (type_id == typeid(unsigned int)) {BookHistoAction<unsigned int>(theBranchName, h); return h;}
-         // else if (type_id == typeid(float)) {BookHistoAction<float>(theBranchName, h); return h;}
-         else if (type_id == typeid(double)) {BookHistoAction<double>(theBranchName, h); return h;}
-         // else if (type_id == typeid(long int)) {BookHistoAction<long int>(theBranchName, h); return h;}
-         // else if (type_id == typeid(unsigned long int)) {BookHistoAction<unsigned long int>(theBranchName, h); return h;}
-         else if (type_id == typeid(bool)) {BookHistoAction<bool>(theBranchName, h); return h;}
-         else if (type_id == typeid(std::vector<double>)) {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<float>)) {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<bool>)) {BookHistoAction<std::vector<bool>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<char>)) {BookHistoAction<std::vector<char>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<short>)) {BookHistoAction<std::vector<short>>(theBranchName, h); return h;}
-         else if (type_id == typeid(std::vector<int>)) {BookHistoAction<std::vector<int>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<long int>)) {BookHistoAction<std::vector<long int>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<unsigned char>)) {BookHistoAction<std::vector<unsigned char>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<unsigned short>)) {BookHistoAction<std::vector<unsigned short>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<unsigned int>)) {BookHistoAction<std::vector<unsigned int>>(theBranchName, h); return h;}
-         // else if (type_id == typeid(std::vector<unsigned long int>)) {BookHistoAction<std::vector<unsigned long int>>(theBranchName, h); return h;}
+         const auto& type_id = df.GetBookedBranch(theBranchName).GetTypeId();
+         if (type_id == typeid(char)) {SimpleAction<char, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (type_id == typeid(int)) {SimpleAction<int, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (type_id == typeid(double)) {SimpleAction<double, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (type_id == typeid(bool)) {SimpleAction<bool, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (type_id == typeid(std::vector<double>)) {SimpleAction<std::vector<double>, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (type_id == typeid(std::vector<float>)) {SimpleAction<std::vector<float>, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
       }
       auto branchEl = dynamic_cast<TBranchElement*>(branch);
       if (!branchEl) { // This is a fundamental type
          auto title = branch->GetTitle();
          auto typeCode = title[strlen(title)-1];
-         if (typeCode == 'B') {BookHistoAction<char>(theBranchName, h); return h;}
-         // else if (typeCode == 'b') {BookHistoAction<unsigned char>(theBranchName, h); return h;}
-         // else if (typeCode == 'S') {BookHistoAction<short>(theBranchName, h); return h;}
-         // else if (typeCode == 's') {BookHistoAction<unsigned short>(theBranchName, h); return h;}
-         else if (typeCode == 'I') {BookHistoAction<int>(theBranchName, h); return h;}
-         // else if (typeCode == 'i') {BookHistoAction<unsigned int>(theBranchName, h); return h;}
-         // else if (typeCode == 'F') {BookHistoAction<float>(theBranchName, h); return h;}
-         else if (typeCode == 'D') {BookHistoAction<double>(theBranchName, h); return h;}
-         // else if (typeCode == 'L') {BookHistoAction<long int>(theBranchName, h); return h;}
-         // else if (typeCode == 'l') {BookHistoAction<unsigned long int>(theBranchName, h); return h;}
-         // else if (typeCode == 'O') {BookHistoAction<bool>(theBranchName, h); return h;}
+         if (typeCode == 'B') {SimpleAction<char, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         // else if (typeCode == 'b') {SimpleAction<unsigned char, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         // else if (typeCode == 'S') {SimpleAction<short, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         // else if (typeCode == 's') {SimpleAction<unsigned short, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (typeCode == 'I') {SimpleAction<int, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         // else if (typeCode == 'i') {SimpleAction<unsigned int, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         // else if (typeCode == 'F') {SimpleAction<float, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (typeCode == 'D') {SimpleAction<double, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         // else if (typeCode == 'L') {SimpleAction<long int, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         // else if (typeCode == 'l') {SimpleAction<unsigned long int, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (typeCode == 'O') {SimpleAction<bool, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
       } else {
          std::string typeName = branchEl->GetTypeName();
-         if (typeName == "vector<double>") {BookHistoAction<std::vector<double>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<float>") {BookHistoAction<std::vector<float>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<bool>") {BookHistoAction<std::vector<bool>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<char>") {BookHistoAction<std::vector<char>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<short>") {BookHistoAction<std::vector<short>>(theBranchName, h); return h;}
-         else if (typeName == "vector<int>") {BookHistoAction<std::vector<int>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<long int>") {BookHistoAction<std::vector<long int>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<unsigned char>") {BookHistoAction<std::vector<unsigned char>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<unsigned short>") {BookHistoAction<std::vector<unsigned short>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<unsigned int>") {BookHistoAction<std::vector<unsigned int>>(theBranchName, h); return h;}
-         // else if (typeName == "vector<unsigned long int>") {BookHistoAction<std::vector<unsigned long int>>(theBranchName, h); return h; }
+         if (typeName == "vector<double>") {SimpleAction<std::vector<double>, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
+         else if (typeName == "vector<float>") {SimpleAction<std::vector<int>, ART, AT, TT>::BuildAndBook(this, theBranchName, res); return res;}
       }
-      BookHistoAction<T>(theBranchName, h);
-      return h;
-   }
-
-private:
-   template<typename T, bool IsCont>
-   class FillAction{
-      TH1F* fHist;
-   public:
-      FillAction(TH1F* h):fHist(h){};
-      void Fill(T v){fHist->Fill(v); }
-   };
-
-   template<typename T>
-   class FillAction<T,true>{
-      TH1F* fHist;
-   public:
-      FillAction(TH1F* h):fHist(h){};
-      void Fill(T vs){for (auto&& v : vs) {fHist->Fill(v);} }
-   };
-
-   template<typename T, typename HistResult>
-   void BookHistoAction(const std::string& theBranchName, HistResult& h){
-      auto hv = h.getUnchecked();
-      FillAction<T, IsContainer<T>::value> fa(hv);
-      auto fillAction = [fa](T v) mutable { fa.Fill(v); };
-      BranchList bl = {theBranchName};
-      using DFA = TDataFrameAction<decltype(fillAction), Derived>;
-      Book(std::unique_ptr<DFA>(new DFA(fillAction, bl, *fDerivedPtr)));
+      SimpleAction<BranchType, ART, AT, TT>::BuildAndBook(this, theBranchName, res);
+      return res;
    }
 
    template<typename T>
