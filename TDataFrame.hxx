@@ -168,6 +168,7 @@ const BranchList& PickBranchList(F f, const BranchList& bl, const BranchList& de
 
 class TDataFrameActionBase {
 public:
+   virtual ~TDataFrameActionBase() { }
    virtual void Run(int entry) = 0;
    virtual void BuildReaderValues(TTreeReader& r) = 0;
 };
@@ -177,6 +178,7 @@ using ActionBaseVec = std::vector<ActionBasePtr>;
 
 class TDataFrameFilterBase {
 public:
+   virtual ~TDataFrameFilterBase() { }
    virtual void BuildReaderValues(TTreeReader& r) = 0;
 };
 using FilterBasePtr = std::shared_ptr<TDataFrameFilterBase>;
@@ -185,6 +187,7 @@ using FilterBaseVec = std::vector<FilterBasePtr>;
 
 class TDataFrameBranchBase {
 public:
+   virtual ~TDataFrameBranchBase() { }
    virtual void BuildReaderValues(TTreeReader& r) = 0;
    virtual std::string GetName() const = 0;
    virtual void* GetValue(int entry) = 0;
@@ -294,6 +297,7 @@ template<typename Derived>
 class TDataFrameInterface {
 public:
    TDataFrameInterface() : fDerivedPtr(static_cast<Derived*>(this)) { }
+   virtual ~TDataFrameInterface() { }
 
    template<typename F>
    auto Filter(F f, const BranchList& bl = {}) -> TDataFrameFilter<F, Derived>& {
