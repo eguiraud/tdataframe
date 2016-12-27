@@ -479,10 +479,11 @@ public:
    void* GetValue(int entry) {
       if(entry != fLastCheckedEntry) {
          // evaluate this filter, cache the result
-         fLastResultPtr = GetValueHelper(f_arg_types(), f_arg_ind(), entry);
+         auto newValuePtr = GetValueHelper(f_arg_types(), f_arg_ind(), entry);
+         fLastResultPtr.swap(newValuePtr);
          fLastCheckedEntry = entry;
       }
-      return static_cast<void*>(fLastResultPtr);
+      return static_cast<void*>(fLastResultPtr.get());
    }
 
    const std::type_info& GetTypeId() const {
@@ -501,9 +502,14 @@ public:
 
 private:
    template<int...S, typename...types>
-   ret_t* GetValueHelper(std::tuple<types...>, seq<S...>, int entry) {
-      // FIXME this leaks, use a smart pointer for automatic deletion
-      ret_t* valuePtr = new ret_t(fExpression(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData)...));
+   std::unique_ptr<ret_t> GetValueHelper(std::tuple<types...>, seq<S...>, int entry) {
+      auto valuePtr = std::unique_ptr<ret_t>(
+         new ret_t(
+            fExpression(
+               ::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData)...
+            )
+         )
+      );
       return valuePtr;
    }
 
@@ -512,7 +518,7 @@ private:
    const BranchList fBranches;
    BranchList fTmpBranches;
    TVBVec fReaderValues;
-   ret_t* fLastResultPtr;
+   std::unique_ptr<ret_t> fLastResultPtr;
    TDataFrame& fFirstData;
    PrevData& fPrevData;
    int fLastCheckedEntry;
