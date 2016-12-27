@@ -43,7 +43,7 @@ void FillTree(const char* filename, const char* treeName) {
    double b1;
    int b2;
    std::vector<FourVector> tracks;
-   std::vector<double> dv {1,2,3,4};
+   std::vector<double> dv {-1,2,3,4};
    std::list<int> sl {1,2,3,4};
    t.Branch("b1", &b1);
    t.Branch("b2", &b2);
@@ -162,6 +162,36 @@ int main() {
    CheckRes(c7v, 10U, "AddBranch complicated");
    std::cout << "AddBranch Histo entries: " << h7->GetEntries() << std::endl;
    std::cout << "AddBranch Histo mean: " << h7->GetMean() << std::endl;
+
+   // TEST 9: Get minimum, maximum, mean
+   TDataFrame d8(treeName, &f, {"b2"});
+   auto min_b2 = d8.Min();
+   auto min_dv = d8.Min("dv");
+   auto max_b2 = d8.Max();
+   auto max_dv = d8.Max("dv");
+   auto mean_b2 = d8.Mean();
+   auto mean_dv = d8.Mean("dv");
+
+   auto min_b2v = *min_b2;
+   auto min_dvv = *min_dv;
+   auto max_b2v = *max_b2;
+   auto max_dvv = *max_dv;
+   auto mean_b2v = *mean_b2;
+   auto mean_dvv = *mean_dv;
+
+   CheckRes(min_b2v, 0., "Min of ints");
+   CheckRes(min_dvv, -1., "Min of vector<double>");
+   CheckRes(max_b2v, 361., "Max of ints");
+   CheckRes(max_dvv, 19., "Max of vector<double>");
+   CheckRes(mean_b2v, 123.5, "Mean of ints");
+   CheckRes(mean_dvv, 5.1379310344827588963, "Mean of vector<double>");
+
+   std::cout << "Min b2: " << *min_b2 << std::endl;
+   std::cout << "Min dv: " << *min_dv << std::endl;
+   std::cout << "Max b2: " << *max_b2 << std::endl;
+   std::cout << "Max dv: " << *max_dv << std::endl;
+   std::cout << "Mean b2: " << *mean_b2 << std::endl;
+   std::cout << "Mean dv: " << *mean_dv << std::endl;
 
    return 0;
 }
