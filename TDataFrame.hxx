@@ -462,7 +462,7 @@ public:
    TDataFrameBranch(const std::string& name, F expression, const BranchList& bl, PrevData& pd)
       : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.fTmpBranches),
         fFirstData(pd.fFirstData), fPrevData(pd), fLastCheckedEntry(-1) {
-      fTmpBranches.push_back(name);
+      fTmpBranches.emplace_back(name);
    }
 
    TDataFrameBranch(const TDataFrameBranch&) = delete;
