@@ -247,6 +247,8 @@ public:
       : fAction(f), fBranches(bl), fTmpBranches(pd.fTmpBranches),
         fPrevData(pd), fFirstData(pd.fFirstData) { }
 
+   TDataFrameAction(const TDataFrameAction&) = delete;
+
    void Run(int entry) {
       // check if entry passes all filters
       if(CheckFilters(entry))
@@ -473,6 +475,8 @@ public:
       fTmpBranches.push_back(name);
    }
 
+   TDataFrameBranch(const TDataFrameBranch&) = delete;
+
    TDataFrame& GetDataFrame() const {
       return fFirstData;
    }
@@ -547,6 +551,8 @@ public:
       return fFirstData;
    }
 
+   TDataFrameFilter(const TDataFrameFilter&) = delete;
+
 private:
    bool CheckFilters(int entry) {
       if(entry != fLastCheckedEntry) {
@@ -601,6 +607,8 @@ public:
    TDataFrame(const std::string& treeName, TDirectory* dirPtr, const BranchList& defaultBranches = {})
       : fTreeName(treeName), fDirPtr(dirPtr),
         fDefaultBranches(defaultBranches), fFirstData(*this) { }
+
+   TDataFrame(const TDataFrame&) = delete;
 
    void Run() {
       TTreeReader r(fTreeName.c_str(), fDirPtr);
