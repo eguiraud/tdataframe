@@ -193,7 +193,7 @@ using TmpBranchBaseVec = std::vector<TmpBranchBasePtr>;
 class TDataFrame;
 
 // Smart pointer for the return type of actions
-class ActionResultPtrBase {
+class TActionResultPtrBase {
    friend TDataFrame;
    TDataFrame& fFirstData;
    bool fReady = false;
@@ -202,16 +202,16 @@ protected:
    bool IsReady() {return fReady;}
    void TriggerRun();
 public:
-   ActionResultPtrBase(TDataFrame& firstData);
+   TActionResultPtrBase(TDataFrame& firstData);
 };
 
-using ActionResultPtrBaseVec = std::vector<ActionResultPtrBase*>;
+using TActionResultPtrBaseVec = std::vector<TActionResultPtrBase*>;
 
 template<typename T>
-class ActionResultPtr : public ActionResultPtrBase{
+class TActionResultPtr : public TActionResultPtrBase{
    std::shared_ptr<T> fObjPtr;
 public:
-   ActionResultPtr(T* objPtr, TDataFrame& firstData): ActionResultPtrBase(firstData), fObjPtr(objPtr){}
+   TActionResultPtr(T* objPtr, TDataFrame& firstData): TActionResultPtrBase(firstData), fObjPtr(objPtr){}
    T *get() {
       if (!IsReady()) TriggerRun();
       return fObjPtr.get();
@@ -368,8 +368,8 @@ public:
       Book(std::unique_ptr<DFA>(new DFA(f, actualBl, *fDerivedPtr)));
    }
 
-   ActionResultPtr<unsigned> Count() {
-      ActionResultPtr<unsigned> c (new unsigned(0), fDerivedPtr->GetDataFrame());
+   TActionResultPtr<unsigned> Count() {
+      TActionResultPtr<unsigned> c (new unsigned(0), fDerivedPtr->GetDataFrame());
       auto countAction = [&c]() -> void { (*c.getUnchecked())++; };
       BranchList bl = {};
       using DFA = TDataFrameAction<decltype(countAction), Derived>;
@@ -378,38 +378,38 @@ public:
    }
 
    template<typename T = double>
-   ActionResultPtr<TH1F> Histo(const std::string& branchName = "", int nBins = 128) {
+   TActionResultPtr<TH1F> Histo(const std::string& branchName = "", int nBins = 128) {
       auto theBranchName (branchName);
       GetDefaultBranchName(theBranchName, "fill the histogram");
       auto& df = fDerivedPtr->GetDataFrame();
-      ActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), df);
+      TActionResultPtr<TH1F> h (new TH1F("","",nBins,0.,0.), df);
       return CreateAction<T, EActionType::kHisto1D>(theBranchName,h);
    }
 
    template<typename T = double>
-   ActionResultPtr<double> Min(const std::string& branchName = "") {
+   TActionResultPtr<double> Min(const std::string& branchName = "") {
       auto theBranchName (branchName);
       GetDefaultBranchName(theBranchName, "calculate the minumum");
       auto& df = fDerivedPtr->GetDataFrame();
-      ActionResultPtr<double> minV (new double(0.), df);
+      TActionResultPtr<double> minV (new double(0.), df);
       return CreateAction<T, EActionType::kMin>(theBranchName,minV);
    }
 
    template<typename T = double>
-   ActionResultPtr<double> Max(const std::string& branchName = "") {
+   TActionResultPtr<double> Max(const std::string& branchName = "") {
       auto theBranchName (branchName);
       GetDefaultBranchName(theBranchName, "calculate the maximum");
       auto& df = fDerivedPtr->GetDataFrame();
-      ActionResultPtr<double> maxV (new double(32.), df);
+      TActionResultPtr<double> maxV (new double(32.), df);
       return CreateAction<T, EActionType::kMax>(theBranchName,maxV);
    }
 
    template<typename T = double>
-   ActionResultPtr<double> Mean(const std::string& branchName = "") {
+   TActionResultPtr<double> Mean(const std::string& branchName = "") {
       auto theBranchName (branchName);
       GetDefaultBranchName(theBranchName, "calculate the mean");
       auto& df = fDerivedPtr->GetDataFrame();
-      ActionResultPtr<double> meanV (new double(32.), df);
+      TActionResultPtr<double> meanV (new double(32.), df);
       return CreateAction<T, EActionType::kMean>(theBranchName,meanV);
    }
 
@@ -438,8 +438,8 @@ private:
    };
 
    template<typename BranchType, typename ThisType>
-   struct SimpleAction<BranchType, ActionResultPtr<TH1F>, TDataFrameInterface<Derived>::EActionType::kHisto1D, ThisType> {
-      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, ActionResultPtr<TH1F>& h){
+   struct SimpleAction<BranchType, TActionResultPtr<TH1F>, TDataFrameInterface<Derived>::EActionType::kHisto1D, ThisType> {
+      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<TH1F>& h){
          auto hv = h.getUnchecked();
          Operations::FillOperation fa(hv);
          auto fillLambda = [fa](BranchType v) mutable { fa.Exec(v); };
@@ -450,8 +450,8 @@ private:
    };
 
    template<typename BranchType, typename ThisType>
-   struct SimpleAction<BranchType, ActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMin, ThisType> {
-      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, ActionResultPtr<double>& minV){
+   struct SimpleAction<BranchType, TActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMin, ThisType> {
+      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<double>& minV){
          auto minVPtr = minV.getUnchecked();
          *minVPtr = std::numeric_limits<double>::max();
          Operations::MinOperation minOp(minVPtr);
@@ -463,8 +463,8 @@ private:
    };
 
    template<typename BranchType, typename ThisType>
-   struct SimpleAction<BranchType, ActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMax, ThisType> {
-      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, ActionResultPtr<double>& maxV){
+   struct SimpleAction<BranchType, TActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMax, ThisType> {
+      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<double>& maxV){
          auto maxVPtr = maxV.getUnchecked();
          *maxVPtr = std::numeric_limits<double>::min();
          Operations::MaxOperation maxOp(maxVPtr);
@@ -476,8 +476,8 @@ private:
    };
 
    template<typename BranchType, typename ThisType>
-   struct SimpleAction<BranchType, ActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMean, ThisType> {
-      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, ActionResultPtr<double>& meanV){
+   struct SimpleAction<BranchType, TActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMean, ThisType> {
+      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<double>& meanV){
          auto meanVPtr = meanV.getUnchecked();
          *meanVPtr = 0.;
          Operations::MeanOperation meanOp(meanVPtr);
@@ -690,7 +690,7 @@ class TDataFrame : public TDataFrameInterface<TDataFrame> {
    template<typename A, typename B> friend class TDataFrameAction;
    template<typename A, typename B> friend class TDataFrameFilter;
    template<typename A, typename B> friend class TDataFrameBranch;
-   friend ActionResultPtrBase;
+   friend TActionResultPtrBase;
    friend class TDataFrameInterface<TDataFrame>;
 
 public:
@@ -768,15 +768,15 @@ private:
       return true;
    }
 
-   // register a ActionResultPtr
-   void RegisterActionResult(ActionResultPtrBase* ptr) {
+   // register a TActionResultPtr
+   void RegisterActionResult(TActionResultPtrBase* ptr) {
       fActionResultsPtrs.emplace_back(ptr);
    }
 
    ActionBaseVec fBookedActions;
    FilterBaseVec fBookedFilters;
    std::map<std::string, TmpBranchBasePtr> fBookedBranches;
-   ActionResultPtrBaseVec fActionResultsPtrs;
+   TActionResultPtrBaseVec fActionResultsPtrs;
    std::string fTreeName;
    TDirectory* fDirPtr;
    const BranchList fDefaultBranches;
@@ -802,13 +802,13 @@ T GetBranchValue(TVBVec& readerValues, int entry, const std::string& branch, TDa
 }
 
 
-void ActionResultPtrBase::TriggerRun()
+void TActionResultPtrBase::TriggerRun()
 {
    fFirstData.Run();
 }
 
 
-ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData) : fFirstData(firstData)
+TActionResultPtrBase::TActionResultPtrBase(TDataFrame& firstData) : fFirstData(firstData)
 {
    firstData.RegisterActionResult(this);
 }
