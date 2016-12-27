@@ -13,6 +13,7 @@
 #include <utility> // std::move
 #include <memory>
 #include <tuple>
+#include <array>
 #include "TBranchElement.h"
 #include "TTreeReaderValue.h"
 #include "TTreeReader.h"
