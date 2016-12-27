@@ -294,6 +294,38 @@ namespace Operations {
       template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
       void Exec(const T&  vs){for (auto&& v : vs) {fHist->Fill(v);} }
    };
+
+   class MinOperation{
+      double* fMinVal;
+   public:
+      MinOperation(double* minVPtr):fMinVal(minVPtr){};
+      template<typename T, typename std::enable_if<!IsContainer<T>::value, int>::type = 0>
+      void Exec(T v){ *fMinVal = std::min((double)v, *fMinVal);}
+      template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
+      void Exec(const T&  vs){ for(auto&& v : vs) *fMinVal = std::min((double)v, *fMinVal);}
+   };
+
+   class MaxOperation{
+      double* fMaxVal;
+   public:
+      MaxOperation(double* maxVPtr):fMaxVal(maxVPtr){};
+      template<typename T, typename std::enable_if<!IsContainer<T>::value, int>::type = 0>
+      void Exec(T v){ *fMaxVal = std::max((double)v,*fMaxVal);}
+      template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
+      void Exec(const T&  vs){ for(auto&& v : vs) *fMaxVal = std::max((double)v,*fMaxVal);}
+   };
+
+   class MeanOperation{
+      unsigned long int n = 0;
+      double* fMeanVal;
+   public:
+      MeanOperation(double* meanVPtr):fMeanVal(meanVPtr){};
+      template<typename T, typename std::enable_if<!IsContainer<T>::value, int>::type = 0>
+      void Cumulate(T v){ *fMeanVal += v; ++n;}
+      template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
+      void Cumulate(const T& vs){ for(auto&& v : vs) { *fMeanVal += v; ++n; } }
+      ~MeanOperation(){if (n!=0) *fMeanVal/=n;}
+   };
 }
 
 // this class provides a common public interface to TDataFrame and TDataFrameFilter
@@ -354,6 +386,33 @@ public:
       return CreateAction<T, EActionType::kHisto1D>(theBranchName,h);
    }
 
+   template<typename T = double>
+   ActionResultPtr<double> Min(const std::string& branchName = "") {
+      auto theBranchName (branchName);
+      GetDefaultBranchName(theBranchName, "calculate the minumum");
+      auto& df = fDerivedPtr->GetDataFrame();
+      ActionResultPtr<double> minV (new double(0.), df);
+      return CreateAction<T, EActionType::kMin>(theBranchName,minV);
+   }
+
+   template<typename T = double>
+   ActionResultPtr<double> Max(const std::string& branchName = "") {
+      auto theBranchName (branchName);
+      GetDefaultBranchName(theBranchName, "calculate the maximum");
+      auto& df = fDerivedPtr->GetDataFrame();
+      ActionResultPtr<double> maxV (new double(32.), df);
+      return CreateAction<T, EActionType::kMax>(theBranchName,maxV);
+   }
+
+   template<typename T = double>
+   ActionResultPtr<double> Mean(const std::string& branchName = "") {
+      auto theBranchName (branchName);
+      GetDefaultBranchName(theBranchName, "calculate the mean");
+      auto& df = fDerivedPtr->GetDataFrame();
+      ActionResultPtr<double> meanV (new double(32.), df);
+      return CreateAction<T, EActionType::kMean>(theBranchName,meanV);
+   }
+
 private:
 
    void GetDefaultBranchName(std::string& theBranchName, const std::string& actionNameForErr) {
@@ -371,7 +430,7 @@ private:
       }  
    }
 
-   enum class EActionType : short {kHisto1D};
+   enum class EActionType : short {kHisto1D, kMin, kMax, kMean};
 
    template<typename BranchType, typename ActionResultType, enum EActionType, typename ThisType>
    struct SimpleAction{
@@ -389,7 +448,46 @@ private:
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(fillLambda, bl, *thisFrame->fDerivedPtr)));
       }
    };
-   
+
+   template<typename BranchType, typename ThisType>
+   struct SimpleAction<BranchType, ActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMin, ThisType> {
+      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, ActionResultPtr<double>& minV){
+         auto minVPtr = minV.getUnchecked();
+         *minVPtr = std::numeric_limits<double>::max();
+         Operations::MinOperation minOp(minVPtr);
+         auto minOpLambda = [minOp](BranchType v) mutable { minOp.Exec(v); };
+         BranchList bl = {theBranchName};
+         using DFA = TDataFrameAction<decltype(minOpLambda), Derived>;
+         thisFrame->Book(std::unique_ptr<DFA>(new DFA(minOpLambda, bl, *thisFrame->fDerivedPtr)));
+      }
+   };
+
+   template<typename BranchType, typename ThisType>
+   struct SimpleAction<BranchType, ActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMax, ThisType> {
+      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, ActionResultPtr<double>& maxV){
+         auto maxVPtr = maxV.getUnchecked();
+         *maxVPtr = std::numeric_limits<double>::min();
+         Operations::MaxOperation maxOp(maxVPtr);
+         auto maxOpLambda = [maxOp](BranchType v) mutable { maxOp.Exec(v); };
+         BranchList bl = {theBranchName};
+         using DFA = TDataFrameAction<decltype(maxOpLambda), Derived>;
+         thisFrame->Book(std::unique_ptr<DFA>(new DFA(maxOpLambda, bl, *thisFrame->fDerivedPtr)));
+      }
+   };
+
+   template<typename BranchType, typename ThisType>
+   struct SimpleAction<BranchType, ActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMean, ThisType> {
+      static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, ActionResultPtr<double>& meanV){
+         auto meanVPtr = meanV.getUnchecked();
+         *meanVPtr = 0.;
+         Operations::MeanOperation meanOp(meanVPtr);
+         auto meanOpLambda = [meanOp](BranchType v) mutable { meanOp.Cumulate(v);};
+         BranchList bl = {theBranchName};
+         using DFA = TDataFrameAction<decltype(meanOpLambda), Derived>;
+         thisFrame->Book(std::unique_ptr<DFA>(new DFA(meanOpLambda, bl, *thisFrame->fDerivedPtr)));
+      }
+   };
+
    template<typename BranchType, EActionType ActionType, typename ActionResultType>
    ActionResultType CreateAction(const std::string& theBranchName, ActionResultType& res) {
       // More types can be added at will at the cost of some compilation time and size of binaries.
