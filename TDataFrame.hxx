@@ -9,6 +9,7 @@
 #include <list>
 #include <vector>
 #include <string>
+#include <utility> // std::move
 #include <memory>
 #include <tuple>
 #include "TBranchElement.h"
@@ -172,7 +173,7 @@ public:
    virtual void Run(int entry) = 0;
    virtual void BuildReaderValues(TTreeReader& r) = 0;
 };
-using ActionBasePtr = std::shared_ptr<TDataFrameActionBase>;
+using ActionBasePtr = std::unique_ptr<TDataFrameActionBase>;
 using ActionBaseVec = std::vector<ActionBasePtr>;
 
 
@@ -181,7 +182,7 @@ public:
    virtual ~TDataFrameFilterBase() { }
    virtual void BuildReaderValues(TTreeReader& r) = 0;
 };
-using FilterBasePtr = std::shared_ptr<TDataFrameFilterBase>;
+using FilterBasePtr = std::unique_ptr<TDataFrameFilterBase>;
 using FilterBaseVec = std::vector<FilterBasePtr>;
 
 
@@ -193,7 +194,7 @@ public:
    virtual void* GetValue(int entry) = 0;
    virtual const std::type_info& GetTypeId() const = 0;
 };
-using TmpBranchBasePtr = std::shared_ptr<TDataFrameBranchBase>;
+using TmpBranchBasePtr = std::unique_ptr<TDataFrameBranchBase>;
 using TmpBranchBaseVec = std::vector<TmpBranchBasePtr>;
 
 
@@ -304,9 +305,11 @@ public:
       ::CheckFilter(f);
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(f, bl, defBl);
-      auto DFFilterPtr = std::make_shared<TDataFrameFilter<F, Derived>>(f, actualBl, *fDerivedPtr);
-      Book(DFFilterPtr);
-      return *DFFilterPtr;
+      using DFF = TDataFrameFilter<F, Derived>;
+      auto FilterPtr = std::unique_ptr<DFF>(new DFF(f, actualBl, *fDerivedPtr));
+      auto& FilterRef = *FilterPtr;
+      Book(std::move(FilterPtr));
+      return FilterRef;
    }
 
    template<typename F>
@@ -314,23 +317,27 @@ public:
    -> TDataFrameBranch<F, Derived>& {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(expression, bl, defBl);
-      auto BranchPtr = std::make_shared<TDataFrameBranch<F, Derived>>(name, expression, actualBl, *fDerivedPtr);
-      Book(BranchPtr);
-      return *BranchPtr;
+      using DFB = TDataFrameBranch<F, Derived>;
+      auto BranchPtr = std::unique_ptr<DFB>(new DFB(name, expression, actualBl, *fDerivedPtr));
+      auto& BranchRef = *BranchPtr;
+      Book(std::move(BranchPtr));
+      return BranchRef;
    }
 
    template<typename F>
    void Foreach(F f, const BranchList& bl = {}) {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(f, bl, defBl);
-      Book(std::make_shared<TDataFrameAction<F, Derived>>(f, actualBl, *fDerivedPtr));
+      using DFA = TDataFrameAction<F, Derived>;
+      Book(std::unique_ptr<DFA>(new DFA(f, actualBl, *fDerivedPtr)));
    }
 
    ActionResultPtr<unsigned> Count() {
       ActionResultPtr<unsigned> c (new unsigned(0), fDerivedPtr->GetDataFrame());
       auto countAction = [&c]() -> void { (*c.getUnchecked())++; };
       BranchList bl = {};
-      Book(std::make_shared<TDataFrameAction<decltype(countAction), Derived>>(countAction, bl, *fDerivedPtr));
+      using DFA = TDataFrameAction<decltype(countAction), Derived>;
+      Book(std::unique_ptr<DFA>(new DFA(countAction, bl, *fDerivedPtr)));
       return c;
    }
 
@@ -433,12 +440,13 @@ private:
       FillAction<T, IsContainer<T>::value> fa(hv);
       auto fillAction = [fa](T v) mutable { fa.Fill(v); };
       BranchList bl = {theBranchName};
-      Book(std::make_shared<TDataFrameAction<decltype(fillAction), Derived>>(fillAction, bl, *fDerivedPtr));
+      using DFA = TDataFrameAction<decltype(fillAction), Derived>;
+      Book(std::unique_ptr<DFA>(new DFA(fillAction, bl, *fDerivedPtr)));
    }
 
    template<typename T>
-   void Book(std::shared_ptr<T> ptr) {
-      fDerivedPtr->Book(ptr);
+   void Book(std::unique_ptr<T> ptr) {
+      fDerivedPtr->Book(std::move(ptr));
    }
 
    virtual TDataFrame& GetDataFrame() const = 0;
@@ -488,7 +496,7 @@ public:
    }
 
    template<typename T>
-   void Book(std::shared_ptr<T> ptr);
+   void Book(std::unique_ptr<T> ptr);
 
    bool CheckFilters(int entry) {
       // dummy call: it just forwards to the previous object in the chain
@@ -569,7 +577,7 @@ private:
    }
 
    template<typename T>
-   void Book(std::shared_ptr<T> ptr);
+   void Book(std::unique_ptr<T> ptr);
 
    FilterF fFilter;
    const BranchList fBranches;
@@ -598,16 +606,16 @@ public:
       TTreeReader r(fTreeName.c_str(), fDirPtr);
 
       // build reader values for all actions, filters and branches
-      for(auto ptr : fBookedActions)
+      for(auto& ptr : fBookedActions)
          ptr->BuildReaderValues(r);
-      for(auto ptr : fBookedFilters)
+      for(auto& ptr : fBookedFilters)
          ptr->BuildReaderValues(r);
-      for(auto bookedBranch : fBookedBranches)
+      for(auto& bookedBranch : fBookedBranches)
          bookedBranch.second->BuildReaderValues(r);
 
       // recursive call to check filters and conditionally executing actions
       while(r.Next())
-         for(auto actionPtr : fBookedActions)
+         for(auto& actionPtr : fBookedActions)
             actionPtr->Run(r.GetCurrentEntry());
 
       // forget everything
@@ -646,15 +654,15 @@ public:
 
 private:
    void Book(ActionBasePtr actionPtr) {
-      fBookedActions.push_back(actionPtr);
+      fBookedActions.emplace_back(std::move(actionPtr));
    }
 
    void Book(FilterBasePtr filterPtr) {
-      fBookedFilters.push_back(filterPtr);
+      fBookedFilters.emplace_back(std::move(filterPtr));
    }
 
    void Book(TmpBranchBasePtr branchPtr) {
-      fBookedBranches[branchPtr->GetName()] = branchPtr;
+      fBookedBranches[branchPtr->GetName()] = std::move(branchPtr);
    }
 
    // dummy call, end of recursive chain of calls
@@ -687,11 +695,13 @@ T GetBranchValue(TVBPtr& readerValue, int entry, const BranchList& bl,
                  const BranchList& tmpbl, TDataFrame& df)
 {
    if(std::find(tmpbl.begin(), tmpbl.end(), bl[S]) != tmpbl.end()) {
+      // bl[S] is a temporary branch, retrieve temporary branch value
       void* tmpBranchVal = df.GetTmpBranchValue(bl[S], entry);
       return *static_cast<T*>(tmpBranchVal);
    }
    else {
-      return *(std::static_pointer_cast<TTreeReaderValue<T>>(readerValue))->Get();
+      // bl[S] is a real branch, retrieve TTreeReaderValue
+      return **static_cast<TTreeReaderValue<T>*>(readerValue.get());
    }
 }
 
@@ -712,14 +722,14 @@ ActionResultPtrBase::ActionResultPtrBase(TDataFrame& firstData) : fFirstData(fir
 // could find a way to make it compile
 template<typename F, typename PrevData>
 template<typename T>
-void TDataFrameFilter<F, PrevData>::Book(std::shared_ptr<T> ptr) {
-   fFirstData.Book(ptr);
+void TDataFrameFilter<F, PrevData>::Book(std::unique_ptr<T> ptr) {
+   fFirstData.Book(std::move(ptr));
 }
 
 template<typename F, typename PrevData>
 template<typename T>
-void TDataFrameBranch<F, PrevData>::Book(std::shared_ptr<T> ptr) {
-   fFirstData.Book(ptr);
+void TDataFrameBranch<F, PrevData>::Book(std::unique_ptr<T> ptr) {
+   fFirstData.Book(std::move(ptr));
 }
 
 #endif //TDATAFRAME
