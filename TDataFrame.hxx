@@ -224,7 +224,7 @@ public:
 // Forward declarations
 class TDataFrame;
 template<int S, typename T>
-T GetBranchValue(TVBPtr& readerValue, int entry, const BranchList& bl, const BranchList& tmpbl, TDataFrame& df);
+T GetBranchValue(TVBVec& readerValues, int entry, const std::string& branch, TDataFrame& df);
 
 
 template<typename F, typename PrevDataFrame>
@@ -260,7 +260,7 @@ public:
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      fAction(::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData)...);
+      fAction(::GetBranchValue<S, types>(fReaderValues, entry, fBranches[S], fFirstData)...);
    }
 
    void BuildReaderValues(TTreeReader& r) {
@@ -506,7 +506,7 @@ private:
       auto valuePtr = std::unique_ptr<ret_t>(
          new ret_t(
             fExpression(
-               ::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData)...
+               ::GetBranchValue<S, types>(fReaderValues, entry, fBranches[S], fFirstData)...
             )
          )
       );
@@ -570,7 +570,7 @@ private:
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      return fFilter( ::GetBranchValue<S, types>(fReaderValues[S], entry, fBranches, fTmpBranches, fFirstData) ...);
+      return fFilter( ::GetBranchValue<S, types>(fReaderValues, entry, fBranches[S], fFirstData) ...);
    }
 
    void BuildReaderValues(TTreeReader& r) {
@@ -695,17 +695,15 @@ private:
 
 //********* FUNCTION AND METHOD DEFINITIONS *********//
 template<int S, typename T>
-T GetBranchValue(TVBPtr& readerValue, int entry, const BranchList& bl,
-                 const BranchList& tmpbl, TDataFrame& df)
+T GetBranchValue(TVBVec& readerValues, int entry, const std::string& branch, TDataFrame& df)
 {
-   if(std::find(tmpbl.begin(), tmpbl.end(), bl[S]) != tmpbl.end()) {
-      // bl[S] is a temporary branch, retrieve temporary branch value
-      void* tmpBranchVal = df.GetTmpBranchValue(bl[S], entry);
+   if(!readerValues[S]) {
+      // temporary branch
+      void* tmpBranchVal = df.GetTmpBranchValue(branch, entry);
       return *static_cast<T*>(tmpBranchVal);
-   }
-   else {
-      // bl[S] is a real branch, retrieve TTreeReaderValue
-      return **static_cast<TTreeReaderValue<T>*>(readerValue.get());
+   } else {
+      // real branch
+      return **std::static_pointer_cast<TTreeReaderValue<T>>(readerValues[S]);
    }
 }
 
