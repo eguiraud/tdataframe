@@ -3,6 +3,7 @@
 
 #include "TH1F.h" // For Histo actions
 
+#include <array>
 #include <type_traits> // std::decay
 #include <typeinfo>
 #include <map>
