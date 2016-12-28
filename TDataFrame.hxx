@@ -728,10 +728,17 @@ public:
       : fTreeName(treeName), fDirPtr(dirPtr),
         fDefaultBranches(defaultBranches), fFirstData(*this) { }
 
+   TDataFrame(TTree& tree, const BranchList& defaultBranches = {})
+      : fTree(&tree), fDirPtr(nullptr),
+        fDefaultBranches(defaultBranches), fFirstData(*this) { }
+
+
    TDataFrame(const TDataFrame&) = delete;
 
    void Run() {
-      TTreeReader r(fTreeName.c_str(), fDirPtr);
+      TTreeReader r;
+      if (fTree) r.SetTree(fTree);
+      else r.SetTree(fTreeName.c_str(), fDirPtr);
 
       // build reader values for all actions, filters and branches
       for(auto& ptr : fBookedActions)
@@ -809,6 +816,7 @@ private:
    TActionResultPtrBaseVec fActionResultsPtrs;
    std::string fTreeName;
    TDirectory* fDirPtr;
+   TTree* fTree;
    const BranchList fDefaultBranches;
    // always empty: each object in the chain copies this list from the previous
    // and they must copy an empty list from the base TDataFrame
