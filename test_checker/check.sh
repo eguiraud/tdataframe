@@ -22,6 +22,19 @@ for F in ${FILES[@]}; do
    fi
 done
 
+MACROS=(test_ctors)
+for M in ${MACROS[@]}; do
+   root -b -l -n -q -x ../tests/${M}.cxx | diff ${M}.out - > /dev/null
+   RES=$?
+   if (( $RES == 1)); then
+      echo "output for test $M changed!"
+      RETCODE=1
+   elif (( $RES == 2)); then
+      echo "something went wrong diffing outputn of test $M!"
+      RETCODE=2
+   fi
+done
+
 if (( $RETCODE == 0 )); then
    echo "everything fine!"
 fi
