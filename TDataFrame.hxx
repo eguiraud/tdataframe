@@ -845,7 +845,7 @@ void TDataFrameBranch<F, PrevData>::Book(std::unique_ptr<T> ptr) {
          }
       }
       if (bl.size() == 1) {
-         ret << " The selected default branche is \"" << bl.front() << "\"";
+         ret << " The selected default branch is \"" << bl.front() << "\"";
       }
       return ret.str();
    }
