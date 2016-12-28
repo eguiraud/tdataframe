@@ -12,36 +12,40 @@
 #include <memory>
 #include <list>
 #include <string>
-#include <tuple>
 #include <type_traits> // std::decay
 #include <typeinfo>
 #include <utility> // std::move
 #include <vector>
 
 /******* meta-utils **********/
+template<typename...Types>
+struct TypeList {
+   static constexpr std::size_t size = sizeof...(Types);
+};
+
 // extract parameter types from a callable object
 template<typename T>
-struct f_traits : public f_traits<decltype(&T::operator())> {};
+struct FunctionTraits : public FunctionTraits<decltype(&T::operator())> {};
 
 // lambdas and std::function
 template<typename R, typename T, typename... Args>
-struct f_traits<R(T::*)(Args...) const> {
-   using arg_types_tuple = typename std::tuple<typename std::decay<Args>::type...>;
-   using ret_t = R;
+struct FunctionTraits<R(T::*)(Args...) const> {
+   using ArgTypes = TypeList<typename std::decay<Args>::type...>;
+   using RetType = R;
 };
 
 // mutable lambdas and functor classes
 template<typename R, typename T, typename... Args>
-struct f_traits<R(T::*)(Args...)> {
-   using arg_types_tuple = typename std::tuple<typename std::decay<Args>::type...>;
-   using ret_t = R;
+struct FunctionTraits<R(T::*)(Args...)> {
+   using ArgTypes = TypeList<typename std::decay<Args>::type...>;
+   using RetType = R;
 };
 
 // free functions
 template<typename R, typename... Args>
-struct f_traits<R(*)(Args...)> {
-   using arg_types_tuple = typename std::tuple<typename std::decay<Args>::type...>;
-   using ret_t = R;
+struct FunctionTraits<R(*)(Args...)> {
+   using ArgTypes = TypeList<typename std::decay<Args>::type...>;
+   using RetType = R;
 };
 
 // compile-time integer sequence generator
@@ -102,9 +106,9 @@ using TVBPtr = std::shared_ptr<ROOT::Internal::TTreeReaderValueBase>;
 using TVBVec = std::vector<TVBPtr>;
 
 
-template<int... S, typename... arg_types>
+template<int... S, typename... BranchTypes>
 TVBVec BuildReaderValues(TTreeReader& r, const BranchList& bl,
-   const BranchList& tmpbl, std::tuple<arg_types...>, seq<S...>)
+                         const BranchList& tmpbl, TypeList<BranchTypes...>, seq<S...>)
 {
    // isTmpBranch has length bl.size(). Elements are true if the corresponding
    // branch is a "fake" branch created with AddBranch, false if they are
@@ -114,15 +118,15 @@ TVBVec BuildReaderValues(TTreeReader& r, const BranchList& bl,
       isTmpBranch[i] = std::find(tmpbl.begin(), tmpbl.end(), bl.at(i)) != tmpbl.end();
 
    // Build vector of pointers to TTreeReaderValueBase.
-   // tvb[i] points to a TTreeReaderValue specialized for the i-th arg_type,
+   // tvb[i] points to a TTreeReaderValue specialized for the i-th BranchType,
    // corresponding to the i-th branch in bl
    // For temporary branches (declared with AddBranch) a nullptr is created instead
-   // S is expected to be a sequence of sizeof...(arg_types) integers
+   // S is expected to be a sequence of sizeof...(BranchTypes) integers
    TVBVec tvb{
       isTmpBranch[S] ?
       nullptr :
-      std::make_shared<TTreeReaderValue<arg_types>>(r, bl.at(S).c_str())
-      ... }; // "..." expands arg_types and S simultaneously
+      std::make_shared<TTreeReaderValue<BranchTypes>>(r, bl.at(S).c_str())
+      ... }; // "..." expands BranchTypes and S simultaneously
 
    return tvb;
 }
@@ -130,7 +134,7 @@ TVBVec BuildReaderValues(TTreeReader& r, const BranchList& bl,
 
 template<typename Filter>
 void CheckFilter(Filter f) {
-   using FilterRetType = typename f_traits<Filter>::ret_t;
+   using FilterRetType = typename FunctionTraits<Filter>::RetType;
    static_assert(std::is_same<FilterRetType, bool>::value,
                  "filter functions must return a bool");
 }
@@ -140,8 +144,7 @@ template<typename F>
 const BranchList& PickBranchList(F f, const BranchList& bl, const BranchList& defBl) {
    // return local BranchList or default BranchList according to which one
    // should be used
-   using ArgsTuple = typename f_traits<F>::arg_types_tuple;
-   auto nArgs = std::tuple_size<ArgsTuple>::value;
+   auto nArgs = FunctionTraits<F>::ArgTypes::size;
    bool useDefBl = false;
    if(nArgs != bl.size()) {
       if(bl.size() == 0 && nArgs == defBl.size()) {
@@ -230,8 +233,8 @@ T GetBranchValue(TVBVec& readerValues, int entry, const std::string& branch, TDa
 
 template<typename F, typename PrevDataFrame>
 class TDataFrameAction : public TDataFrameActionBase {
-   using f_arg_types = typename f_traits<F>::arg_types_tuple;
-   using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
+   using BranchTypes = typename FunctionTraits<F>::ArgTypes;
+   using TypeInd = typename gens<BranchTypes::size>::type;
 
 public:
    TDataFrameAction(F f, const BranchList& bl, PrevDataFrame& pd)
@@ -252,23 +255,23 @@ public:
    }
 
    void ExecuteAction(int entry) {
-      ExecuteActionHelper(f_arg_types(), f_arg_ind(), entry);
+      ExecuteActionHelper(entry, TypeInd(), BranchTypes());
    }
 
-   template<int... S, typename... types>
-   void ExecuteActionHelper(std::tuple<types...>, seq<S...>, int entry) {
+   void BuildReaderValues(TTreeReader& r) {
+      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
+   }
+
+private:
+   template<int... S, typename... BranchTypes>
+   void ExecuteActionHelper(int entry, seq<S...>, TypeList<BranchTypes...>) {
       // Take each pointer in tvb, cast it to a pointer to the
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      fAction(::GetBranchValue<S, types>(fReaderValues, entry, fBranches[S], fFirstData)...);
+      fAction(::GetBranchValue<S, BranchTypes>(fReaderValues, entry, fBranches[S], fFirstData)...);
    }
 
-   void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches, f_arg_types(), f_arg_ind());
-   }
-
-private:
    F fAction;
    const BranchList fBranches;
    const BranchList fTmpBranches;
@@ -577,9 +580,9 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
    template<typename A, typename B> friend class TDataFrameAction;
    template<typename A, typename B> friend class TDataFrameFilter;
    template<typename A, typename B> friend class TDataFrameBranch;
-   using f_arg_types = typename f_traits<F>::arg_types_tuple;
-   using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
-   using ret_t = typename f_traits<F>::ret_t;
+   using BranchTypes = typename FunctionTraits<F>::ArgTypes;
+   using TypeInd = typename gens<BranchTypes::size>::type;
+   using RetType = typename FunctionTraits<F>::RetType;
    using TDFInterface = TDataFrameInterface<TDataFrameBranch<F, PrevData>>;
 
 public:
@@ -596,14 +599,13 @@ public:
    }
 
    void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches,
-                                          f_arg_types(), f_arg_ind());
+      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
    }
 
    void* GetValue(int entry) {
       if(entry != fLastCheckedEntry) {
          // evaluate this filter, cache the result
-         auto newValuePtr = GetValueHelper(f_arg_types(), f_arg_ind(), entry);
+         auto newValuePtr = GetValueHelper(BranchTypes(), TypeInd(), entry);
          fLastResultPtr.swap(newValuePtr);
          fLastCheckedEntry = entry;
       }
@@ -611,7 +613,7 @@ public:
    }
 
    const std::type_info& GetTypeId() const {
-      return typeid(ret_t);
+      return typeid(RetType);
    }
 
    template<typename T>
@@ -625,12 +627,12 @@ public:
    std::string GetName() const { return fName; }
 
 private:
-   template<int...S, typename...types>
-   std::unique_ptr<ret_t> GetValueHelper(std::tuple<types...>, seq<S...>, int entry) {
-      auto valuePtr = std::unique_ptr<ret_t>(
-         new ret_t(
+   template<int...S, typename...BranchTypes>
+   std::unique_ptr<RetType> GetValueHelper(TypeList<BranchTypes...>, seq<S...>, int entry) {
+      auto valuePtr = std::unique_ptr<RetType>(
+         new RetType(
             fExpression(
-               ::GetBranchValue<S, types>(fReaderValues, entry, fBranches[S], fFirstData)...
+               ::GetBranchValue<S, BranchTypes>(fReaderValues, entry, fBranches[S], fFirstData)...
             )
          )
       );
@@ -642,7 +644,7 @@ private:
    const BranchList fBranches;
    BranchList fTmpBranches;
    TVBVec fReaderValues;
-   std::unique_ptr<ret_t> fLastResultPtr;
+   std::unique_ptr<RetType> fLastResultPtr;
    TDataFrame& fFirstData;
    PrevData& fPrevData;
    int fLastCheckedEntry;
@@ -658,8 +660,8 @@ class TDataFrameFilter
    template<typename A, typename B> friend class TDataFrameFilter;
    template<typename A, typename B> friend class TDataFrameBranch;
    template<typename A> friend class TDataFrameInterface;
-   using f_arg_types = typename f_traits<FilterF>::arg_types_tuple;
-   using f_arg_ind = typename gens<std::tuple_size<f_arg_types>::value>::type;
+   using BranchTypes = typename FunctionTraits<FilterF>::ArgTypes;
+   using TypeInd = typename gens<BranchTypes::size>::type;
    using TDFInterface = TDataFrameInterface<TDataFrameFilter<FilterF, PrevDataFrame>>;
 
 public:
@@ -681,25 +683,24 @@ private:
             fLastResult = false;
          } else {
             // evaluate this filter, cache the result
-            fLastResult = CheckFilterHelper(f_arg_types(), f_arg_ind(), entry);
+            fLastResult = CheckFilterHelper(BranchTypes(), TypeInd(), entry);
          }
          fLastCheckedEntry = entry;
       }
       return fLastResult;
    }
 
-   template<int... S, typename... types>
-   bool CheckFilterHelper(std::tuple<types...>, seq<S...>, int entry) {
+   template<int... S, typename... BranchTypes>
+   bool CheckFilterHelper(TypeList<BranchTypes...>, seq<S...>, int entry) {
       // Take each pointer in tvb, cast it to a pointer to the
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      return fFilter( ::GetBranchValue<S, types>(fReaderValues, entry, fBranches[S], fFirstData) ...);
+      return fFilter( ::GetBranchValue<S, BranchTypes>(fReaderValues, entry, fBranches[S], fFirstData) ...);
    }
 
    void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches,
-                                          f_arg_types(), f_arg_ind());
+      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
    }
 
    template<typename T>
