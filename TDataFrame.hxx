@@ -379,6 +379,20 @@ public:
       return c;
    }
 
+
+   template<typename T, typename COLL = std::list<T>>
+   TActionResultPtr<COLL> Get(const std::string& branchName = "") {
+      auto theBranchName (branchName);
+      GetDefaultBranchName(theBranchName, "get the values of the branch");
+      TActionResultPtr<COLL> values (new COLL, fDerivedPtr->GetDataFrame());
+      auto valuesPtr = values.getUnchecked();
+      auto getAction = [valuesPtr](const T& v) { valuesPtr->emplace_back(v); };
+      BranchList bl = {theBranchName};
+      using DFA = TDataFrameAction<decltype(getAction), Derived>;
+      Book(std::unique_ptr<DFA>(new DFA(getAction, bl, *fDerivedPtr)));
+      return values;
+   }
+
    template<typename T = double>
    TActionResultPtr<TH1F> Histo(const std::string& branchName = "", int nBins = 128) {
       auto theBranchName (branchName);

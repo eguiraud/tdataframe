@@ -193,6 +193,26 @@ int main() {
    std::cout << "Mean b2: " << *mean_b2 << std::endl;
    std::cout << "Mean dv: " << *mean_dv << std::endl;
 
+   // TEST 10: Get a full column
+   TDataFrame d9(treeName, &f, {"tracks"});
+   auto& dd9 = d9.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
+                 .AddBranch("ptsum", [](FourVectors const & tracks) {
+                    double sum = 0;
+                    for(auto& track: tracks)
+                       sum += track.Pt();
+                    return sum; });
+   auto b2List = dd9.Get<int>("b2");
+   auto ptsumVec = dd9.Get<double, std::vector<double>>("ptsum");
+
+   for (auto& v : *b2List) {
+      std::cout << v << std::endl;
+   }
+
+   for (auto& v : *ptsumVec) {
+      std::cout << v << std::endl;
+   }
+
+
    return 0;
 }
 
