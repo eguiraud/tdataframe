@@ -157,7 +157,7 @@ int main() {
                        sum += track.Pt();
                     return sum; });
    auto c7 = dd7.Count();
-   auto h7 = dd7.Histo<double>("ptsum");
+   auto h7 = dd7.Histo("ptsum");
    auto c7v = *c7.get();
    CheckRes(c7v, 10U, "AddBranch complicated");
    std::cout << "AddBranch Histo entries: " << h7->GetEntries() << std::endl;
