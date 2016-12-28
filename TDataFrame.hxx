@@ -442,7 +442,7 @@ private:
       static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<TH1F>& h){
          auto hv = h.getUnchecked();
          Operations::FillOperation fa(hv);
-         auto fillLambda = [fa](BranchType v) mutable { fa.Exec(v); };
+         auto fillLambda = [fa](const BranchType& v) mutable { fa.Exec(v); };
          BranchList bl = {theBranchName};
          using DFA = TDataFrameAction<decltype(fillLambda), Derived>;
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(fillLambda, bl, *thisFrame->fDerivedPtr)));
@@ -455,7 +455,7 @@ private:
          auto minVPtr = minV.getUnchecked();
          *minVPtr = std::numeric_limits<double>::max();
          Operations::MinOperation minOp(minVPtr);
-         auto minOpLambda = [minOp](BranchType v) mutable { minOp.Exec(v); };
+         auto minOpLambda = [minOp](const BranchType& v) mutable { minOp.Exec(v); };
          BranchList bl = {theBranchName};
          using DFA = TDataFrameAction<decltype(minOpLambda), Derived>;
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(minOpLambda, bl, *thisFrame->fDerivedPtr)));
@@ -468,7 +468,7 @@ private:
          auto maxVPtr = maxV.getUnchecked();
          *maxVPtr = std::numeric_limits<double>::min();
          Operations::MaxOperation maxOp(maxVPtr);
-         auto maxOpLambda = [maxOp](BranchType v) mutable { maxOp.Exec(v); };
+         auto maxOpLambda = [maxOp](const BranchType& v) mutable { maxOp.Exec(v); };
          BranchList bl = {theBranchName};
          using DFA = TDataFrameAction<decltype(maxOpLambda), Derived>;
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(maxOpLambda, bl, *thisFrame->fDerivedPtr)));
@@ -481,7 +481,7 @@ private:
          auto meanVPtr = meanV.getUnchecked();
          *meanVPtr = 0.;
          Operations::MeanOperation meanOp(meanVPtr);
-         auto meanOpLambda = [meanOp](BranchType v) mutable { meanOp.Cumulate(v);};
+         auto meanOpLambda = [meanOp](const BranchType& v) mutable { meanOp.Cumulate(v);};
          BranchList bl = {theBranchName};
          using DFA = TDataFrameAction<decltype(meanOpLambda), Derived>;
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(meanOpLambda, bl, *thisFrame->fDerivedPtr)));
@@ -556,7 +556,7 @@ public:
    TDataFrameBranch(const std::string& name, F expression, const BranchList& bl, PrevData& pd)
       : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.fTmpBranches),
         fFirstData(pd.fFirstData), fPrevData(pd), fLastCheckedEntry(-1) {
-      fTmpBranches.push_back(name);
+      fTmpBranches.emplace_back(name);
    }
 
    TDataFrameBranch(const TDataFrameBranch&) = delete;
@@ -843,7 +843,7 @@ void TDataFrameBranch<F, PrevData>::Book(std::unique_ptr<T> ptr) {
          }
       }
       if (bl.size() == 1) {
-         ret << " The selected default branche is \"" << bl.front() << "\"" << std::endl;
+         ret << " The selected default branche is \"" << bl.front() << "\"";
       }
       return ret.str();
    }
