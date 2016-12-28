@@ -1,22 +1,24 @@
 #ifndef TDATAFRAME
 #define TDATAFRAME
 
+#include "TBranchElement.h"
 #include "TH1F.h" // For Histo actions
+#include "TTreeReader.h"
+#include "TTreeReaderValue.h"
 
+#include <algorithm> // std::find
+#include <array>
+#include <map>
+#include <memory>
+#include <list>
+#include <string>
+#include <tuple>
 #include <type_traits> // std::decay
 #include <typeinfo>
-#include <map>
-#include <algorithm> // std::find
-#include <list>
-#include <vector>
-#include <string>
 #include <utility> // std::move
-#include <memory>
-#include <tuple>
-#include <array>
-#include "TBranchElement.h"
-#include "TTreeReaderValue.h"
-#include "TTreeReader.h"
+#include <vector>
+
+
 
 /******* meta-utils **********/
 // extract parameter types from a callable object
