@@ -1,5 +1,5 @@
 #!/bin/bash
-pushd ..
+pushd ../tests
 make
 RES=$?
 if (( $RES > 0 )); then
@@ -11,7 +11,7 @@ popd
 FILES=(test2 tdf001_introduction tdf002_dataModel)
 RETCODE=0
 for F in ${FILES[@]}; do
-   ../$F | diff $F.out - > /dev/null
+   ../tests/$F | diff $F.out - > /dev/null
    RES=$?
    if (( $RES == 1)); then
       echo "output for test $F changed!"

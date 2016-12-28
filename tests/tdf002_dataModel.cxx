@@ -22,7 +22,7 @@
 #include "TTree.h"
 #include "ROOT/TSeq.hxx"
 
-#include "TDataFrame.hxx"
+#include "../TDataFrame.hxx"
 
 using FourVector = ROOT::Math::XYZTVector;
 using CylFourVector = ROOT::Math::RhoEtaPhiVector;
