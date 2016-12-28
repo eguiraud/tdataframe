@@ -828,4 +828,25 @@ void TDataFrameBranch<F, PrevData>::Book(std::unique_ptr<T> ptr) {
    fFirstData.Book(std::move(ptr));
 }
 
+// Print a TDataFrame at the Prompt
+#include <sstream>
+
+ namespace cling {
+   std::string printValue(TDataFrame *df) {
+      std::ostringstream ret;
+      ret << "A data frame based on the \"" << df->GetTreeName() << "\" tree.";
+      auto bl = df->GetDefaultBranches();
+      if (bl.size() > 1) {
+         ret << " Selected default branches are:" << std::endl;
+         for (auto& b : bl) {
+            ret << " - " << b << std::endl;
+         }
+      }
+      if (bl.size() == 1) {
+         ret << " The selected default branche is \"" << bl.front() << "\"" << std::endl;
+      }
+      return ret.str();
+   }
+}
+
 #endif //TDATAFRAME
