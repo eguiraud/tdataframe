@@ -224,7 +224,7 @@ public:
 // Forward declarations
 class TDataFrame;
 template<int S, typename T>
-T GetBranchValue(TVBVec& readerValues, int entry, const std::string& branch, TDataFrame& df);
+T& GetBranchValue(TVBPtr& readerValues, int entry, const std::string& branch, TDataFrame& df);
 
 
 template<typename F, typename PrevDataFrame>
@@ -462,7 +462,7 @@ public:
    TDataFrameBranch(const std::string& name, F expression, const BranchList& bl, PrevData& pd)
       : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.fTmpBranches),
         fFirstData(pd.fFirstData), fPrevData(pd), fLastCheckedEntry(-1) {
-      fTmpBranches.push_back(name);
+      fTmpBranches.emplace_back(name);
    }
 
    TDataFrameBranch(const TDataFrameBranch&) = delete;
@@ -703,15 +703,15 @@ private:
 
 //********* FUNCTION AND METHOD DEFINITIONS *********//
 template<int S, typename T>
-T GetBranchValue(TVBVec& readerValues, int entry, const std::string& branch, TDataFrame& df)
+T& GetBranchValue(TVBPtr& readerValue, int entry, const std::string& branch, TDataFrame& df)
 {
-   if(!readerValues[S]) {
+   if(readerValue == nullptr) {
       // temporary branch
       void* tmpBranchVal = df.GetTmpBranchValue(branch, entry);
       return *static_cast<T*>(tmpBranchVal);
    } else {
       // real branch
-      return **std::static_pointer_cast<TTreeReaderValue<T>>(readerValues[S]);
+      return **std::static_pointer_cast<TTreeReaderValue<T>>(readerValue);
    }
 }
 
