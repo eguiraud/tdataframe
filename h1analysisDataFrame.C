@@ -34,7 +34,7 @@ void h1analysisDataFrame() {
    chain.Add("http://root.cern.ch/root/h1analysis/dstarp2.root");
 
    TDataFrame dataFrame(chain);
-   auto selected = dataFrame
+   auto &selected = dataFrame
    .Filter([](double md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
            {"md0_d"})
    .Filter([](double ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
