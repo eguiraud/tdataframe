@@ -53,11 +53,11 @@ void FitAndPlot(TH1& hdmd, TH2& h2) {
    hdmd.GetXaxis()->SetTitle("m_{K#pi#pi} - m_{K#pi}[GeV/c^{2}]");
    hdmd.GetXaxis()->SetTitleOffset(1.4);
 
-   //fit histogram hdmd with function f5 using the loglfIkelihood option
    if (gROOT->GetListOfFunctions()->FindObject("f5"))
       delete gROOT->GetFunction("f5");
    TF1 *f5 = new TF1("f5",fdm5,0.139,0.17,5);
    f5->SetParameters(1000000, .25, 2000, .1454, .001);
+   //fit histogram hdmd with function f5 using the loglikelihood option
    hdmd.Fit("f5","lr");
 
    //create the canvas for tau d0
