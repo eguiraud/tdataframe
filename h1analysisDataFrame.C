@@ -5,7 +5,7 @@ const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
 auto& Select(TDataFrame& dataFrame) {
    return dataFrame
    .Filter([](double md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
-           {"md0_d"})
+           {"md0_d"}).Trace("md0")
    .Filter([](double ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
    .Filter([](double etads_d) { return TMath::Abs(etads_d) < 1.5; }, {"etads_d"})
    .Filter([](int ik, int ipi, const std::vector<int>& nhitrp) { return nhitrp[ik-1] * nhitrp[ipi-1] > 1; },
