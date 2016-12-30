@@ -1,7 +1,26 @@
 #include "TDataFrame.hxx"
 
 const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
-const Double_t sigma = 0.0012;
+
+auto& Select(TDataFrame& dataFrame) {
+   return dataFrame
+   .Filter([](double md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
+           {"md0_d"})
+   .Filter([](double ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
+   .Filter([](double etads_d) { return TMath::Abs(etads_d) < 1.5; }, {"etads_d"})
+   .Filter([](int ik, int ipi, const std::vector<int>& nhitrp) { return nhitrp[ik-1] * nhitrp[ipi-1] > 1; },
+           {"ik", "ipi", "nhitrp"})
+   .Filter([](int ik, const std::vector<float>& rend, const std::vector<float>& rstart) {
+      return rend[ik-1] - rstart[ik-1] > 22; },
+           {"rbegin", "rend", "ik"})
+   .Filter([](int ipi, const std::vector<float>& rend, const std::vector<float>& rstart) {
+      return rend[ipi-1] - rstart[ipi-1] > 22; },
+           {"rbegin", "rend", "ipi"})
+   .Filter([](int ik, const std::vector<float>& nlhk) { return nlhk[ik-1] > 0.1; }, {"ik", "n1hk"})
+   .Filter([](int ipi, const std::vector<float>& nlhpi) { return nlhpi[ipi-1] > 0.1; }, {"ipi", "n1hpi"})
+   .Filter([](const std::vector<float>& nlhpi, int ipis) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "n1jpi"})
+   .Filter([](int njets) { return njets >= 1; }, {"njets"});
+}
 
 //_____________________________________________________________________
 Double_t fdm5(Double_t *xx, Double_t *par)
@@ -17,6 +36,7 @@ Double_t fdm5(Double_t *xx, Double_t *par)
 //_____________________________________________________________________
 Double_t fdm2(Double_t *xx, Double_t *par)
 {
+   static const Double_t sigma = 0.0012;
    Double_t x = xx[0];
    if (x <= 0.13957) return 0;
    Double_t xp3 = (x-0.1454)*(x-0.1454);
@@ -25,40 +45,7 @@ Double_t fdm2(Double_t *xx, Double_t *par)
    return res;
 }
 
-
-void h1analysisDataFrame() {
-   TChain chain("h42");
-   chain.Add("http://root.cern.ch/root/h1analysis/dstarmb.root");
-   chain.Add("http://root.cern.ch/root/h1analysis/dstarp1a.root");
-   chain.Add("http://root.cern.ch/root/h1analysis/dstarp1b.root");
-   chain.Add("http://root.cern.ch/root/h1analysis/dstarp2.root");
-
-   TDataFrame dataFrame(chain);
-   auto &selected = dataFrame
-   .Filter([](double md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
-           {"md0_d"})
-   .Filter([](double ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
-   .Filter([](double etads_d) { return TMath::Abs(etads_d) < 1.5; }, {"etads_d"})
-   .Filter([](int ik, int ipi, const std::vector<int>& nhitrp) { return nhitrp[ik-1] * nhitrp[ipi-1] > 1; },
-           {"ik", "ipi", "nhitrp"})
-   .Filter([](int ik, const std::vector<float>& rend, const std::vector<float>& rstart) {
-              return rend[ik-1] - rstart[ik-1] > 22; },
-           {"rbegin", "rend", "ik"})
-   .Filter([](int ipi, const std::vector<float>& rend, const std::vector<float>& rstart) {
-      return rend[ipi-1] - rstart[ipi-1] > 22; },
-           {"rbegin", "rend", "ipi"})
-   .Filter([](int ik, const std::vector<float>& nlhk) { return nlhk[ik-1] > 0.1; }, {"ik", "n1hk"})
-   .Filter([](int ipi, const std::vector<float>& nlhpi) { return nlhpi[ipi-1] > 0.1; }, {"ipi", "n1hpi"})
-   .Filter([](const std::vector<float>& nlhpi, int ipis) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "n1jpi"})
-   .Filter([](int njets) { return njets >= 1; }, {"njets"});
-
-   TH1F hdmd("hdmd", "Dm_d",40,0.13,0.17);
-   TH2F h2("h2","ptD0 vs Dm_d",30,0.135,0.165,30,-3,6);
-   selected.Histo<float>("dm_d", hdmd);
-   selected.Foreach([&h2](float dm_d, float rpd0_t, float ptd0_d) {
-                       h2.Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
-                    {"dm_d", "rpd0_t", "ptd0_d"});
-
+void FitAndPlot(TH1& hdmd, TH2& h2) {
    //create the canvas for the h1analysis fit
    gStyle->SetOptFit();
    TCanvas *c1 = new TCanvas("c1","h1analysis analysis",10,10,800,600);
@@ -102,5 +89,24 @@ void h1analysisDataFrame() {
    TPaveStats *psdmd = (TPaveStats *)hdmd.GetListOfFunctions()->FindObject("stats");
    psdmd->SetOptStat(1110);
    c1->Modified();
+}
 
+void h1analysisDataFrame() {
+   TChain chain("h42");
+   chain.Add("http://root.cern.ch/root/h1analysis/dstarmb.root");
+   chain.Add("http://root.cern.ch/root/h1analysis/dstarp1a.root");
+   chain.Add("http://root.cern.ch/root/h1analysis/dstarp1b.root");
+   chain.Add("http://root.cern.ch/root/h1analysis/dstarp2.root");
+
+   TDataFrame dataFrame(chain);
+   auto& selected = Select(dataFrame);
+
+   TH1F hdmd("hdmd", "Dm_d",40,0.13,0.17);
+   TH2F h2("h2","ptD0 vs Dm_d",30,0.135,0.165,30,-3,6);
+   selected.Foreach([&hdmd](double dm_d) { hdmd.Fill(dm_d); }, {"dm_d"});
+   selected.Foreach([&h2](float dm_d, float rpd0_t, float ptd0_d) {
+                       h2.Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
+                    {"dm_d", "rpd0_t", "ptd0_d"});
+
+   FitAndPlot(hdmd, h2);
 }
