@@ -339,6 +339,17 @@ enum class EActionType : short {
 };
 
 
+struct TDataFrameAcceptanceTrace {
+   void Book(bool selected) {
+      if (selected) ++fAccepted;
+      else ++fRejected;
+   }
+
+   std::string fName;
+   unsigned long long fAccepted = 0;
+   unsigned long long fRejected = 0;
+};
+
 // this class provides a common public interface to TDataFrame and TDataFrameFilter
 // it contains the Filter call and all action calls
 template<typename Derived>
@@ -357,6 +368,13 @@ public:
       auto& FilterRef = *FilterPtr;
       Book(std::move(FilterPtr));
       return FilterRef;
+   }
+
+   auto Trace(const std::string& name) {
+      auto& traces = GetDataFrame().GetTraces();
+      traces.push_back(TDataFrameAcceptanceTrace{name, 0, 0});
+      fTrace = &traces.back();
+      return *this;
    }
 
    template<typename F>
@@ -445,6 +463,12 @@ public:
       auto& df = fDerivedPtr->GetDataFrame();
       TActionResultPtr<double> meanV (new double(32.), df);
       return CreateAction<T, EActionType::kMean>(theBranchName,meanV);
+   }
+
+protected:
+
+   void TraceAcceptance(bool accepted) {
+      if (fTrace) fTrace->Book(accepted);
    }
 
 private:
@@ -570,6 +594,7 @@ private:
    virtual TDataFrame& GetDataFrame() const = 0;
 
    Derived* fDerivedPtr;
+   TDataFrameAcceptanceTrace* fTrace = nullptr;
 };
 
 
@@ -684,6 +709,7 @@ private:
             // evaluate this filter, cache the result
             fLastResult = CheckFilterHelper(BranchTypes(), TypeInd(), entry);
          }
+         this->TraceAcceptance(fLastResult);
          fLastCheckedEntry = entry;
       }
       return fLastResult;
@@ -729,6 +755,11 @@ public:
         fDefaultBranches(defaultBranches), fFirstData(*this) { }
 
    TDataFrame(const TDataFrame&) = delete;
+
+   ~TDataFrame() {
+      if (!fTraces.empty())
+         DumpTraces();
+   }
 
    void Run() {
       TTreeReader r(fTreeName.c_str(), fDirPtr);
@@ -780,6 +811,30 @@ public:
       return fTreeName;
    }
 
+   std::vector<TDataFrameAcceptanceTrace>& GetTraces() {
+      return fTraces;
+   }
+
+   const std::vector<TDataFrameAcceptanceTrace>& GetTraces() const {
+      return fTraces;
+   }
+
+   void DumpTraces() const {
+      std::cout << "=== TDataFrame trace ===\n"
+                   "name: accepted / all (ratio)\n";
+      for (auto&& traceEntry: fTraces) {
+         const auto accepted = traceEntry.fAccepted;
+         const auto all = accepted + traceEntry.fRejected;
+         double ratio = accepted;
+         if (all)
+            ratio /= all;
+         else ratio = 0.;
+         std::cout << traceEntry.fName << ": "
+                   << accepted << " / " << all
+                   << " (" << ratio << ")\n";
+      }
+   }
+
 private:
    void Book(ActionBasePtr actionPtr) {
       fBookedActions.emplace_back(std::move(actionPtr));
@@ -814,6 +869,7 @@ private:
    // and they must copy an empty list from the base TDataFrame
    const BranchList fTmpBranches;
    TDataFrame& fFirstData;
+   std::vector<TDataFrameAcceptanceTrace> fTraces;
 };
 
 
