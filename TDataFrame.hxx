@@ -175,6 +175,7 @@ class TDataFrameFilterBase {
 public:
    virtual ~TDataFrameFilterBase() { }
    virtual void BuildReaderValues(TTreeReader& r) = 0;
+   virtual void DumpAcceptanceTrace() const = 0;
 };
 using FilterBasePtr = std::unique_ptr<TDataFrameFilterBase>;
 using FilterBaseVec = std::vector<FilterBasePtr>;
@@ -187,6 +188,7 @@ public:
    virtual std::string GetName() const = 0;
    virtual void* GetValue(int entry) = 0;
    virtual const std::type_info& GetTypeId() const = 0;
+   virtual void DumpAcceptanceTrace() const = 0;
 };
 using TmpBranchBasePtr = std::unique_ptr<TDataFrameBranchBase>;
 using TmpBranchBaseVec = std::vector<TmpBranchBasePtr>;
@@ -359,6 +361,11 @@ public:
       return FilterRef;
    }
 
+   auto& Trace(const std::string& name) {
+      fTraceName = name;
+      return *this;
+   }
+
    template<typename F>
    auto AddBranch(const std::string& name, F expression, const BranchList& bl = {})
    -> TDataFrameBranch<F, Derived>& {
@@ -445,6 +452,26 @@ public:
       auto& df = fDerivedPtr->GetDataFrame();
       TActionResultPtr<double> meanV (new double(32.), df);
       return CreateAction<T, EActionType::kMean>(theBranchName,meanV);
+   }
+
+protected:
+
+   bool TraceAcceptance(bool accepted) {
+      if (accepted) ++fAccepted;
+      else ++fRejected;
+      return accepted;
+   }
+
+   void DumpAcceptanceTraceImpl() const {
+      if (fTraceName.empty())
+         return;
+      const auto accepted = fAccepted;
+      const auto all = accepted + fRejected;
+      double ratio = accepted;
+      if (all)
+         ratio /= all;
+      else ratio = 0.;
+      std::cout << fTraceName << ": pass=" << accepted << " / all=" << all << " (" << ratio << ")\n";
    }
 
 private:
@@ -570,6 +597,9 @@ private:
    virtual TDataFrame& GetDataFrame() const = 0;
 
    Derived* fDerivedPtr;
+   unsigned long long fAccepted = 0;
+   unsigned long long fRejected = 0;
+   std::string fTraceName;
 };
 
 
@@ -611,6 +641,8 @@ public:
       return static_cast<void*>(fLastResultPtr.get());
    }
 
+   void DumpAcceptanceTrace() const { this->DumpAcceptanceTraceImpl(); }
+
    const std::type_info& GetTypeId() const {
       return typeid(RetType);
    }
@@ -620,7 +652,7 @@ public:
 
    bool CheckFilters(int entry) {
       // dummy call: it just forwards to the previous object in the chain
-      return fPrevData.CheckFilters(entry);
+      return this->TraceAcceptance(fPrevData.CheckFilters(entry));
    }
 
    std::string GetName() const { return fName; }
@@ -674,7 +706,9 @@ public:
 
    TDataFrameFilter(const TDataFrameFilter&) = delete;
 
-private:
+   void DumpAcceptanceTrace() const { this->DumpAcceptanceTraceImpl(); }
+
+ private:
    bool CheckFilters(int entry) {
       if(entry != fLastCheckedEntry) {
          if(!fPrevData.CheckFilters(entry)) {
@@ -683,6 +717,7 @@ private:
          } else {
             // evaluate this filter, cache the result
             fLastResult = CheckFilterHelper(BranchTypes(), TypeInd(), entry);
+            this->TraceAcceptance(fLastResult);
          }
          fLastCheckedEntry = entry;
       }
@@ -753,6 +788,8 @@ public:
          for(auto& actionPtr : fBookedActions)
             actionPtr->Run(r.GetCurrentEntry());
 
+      DumpTraces();
+
       // forget everything
       fBookedActions.clear();
       fBookedFilters.clear();
@@ -787,6 +824,16 @@ public:
       return fTreeName;
    }
 
+   void DumpTraces() const {
+      this->DumpAcceptanceTrace();
+      for(auto& ptr : fBookedFilters)
+         ptr->DumpAcceptanceTrace();
+      for(auto& bookedBranch : fBookedBranches)
+         bookedBranch.second->DumpAcceptanceTrace();
+   }
+
+   void DumpAcceptanceTrace() const { this->DumpAcceptanceTraceImpl(); }
+
 private:
    void Book(ActionBasePtr actionPtr) {
       fBookedActions.emplace_back(std::move(actionPtr));
@@ -802,7 +849,7 @@ private:
 
    // dummy call, end of recursive chain of calls
    bool CheckFilters(int) {
-      return true;
+      return this->TraceAcceptance(true);
    }
 
    // register a TActionResultPtr
