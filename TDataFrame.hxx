@@ -441,7 +441,7 @@ private:
             msg +=  " and more than one default branch.";
             throw std::runtime_error(msg);
          }
-      }  
+      }
    }
 
    enum class EActionType : short {kHisto1D, kMin, kMax, kMean};
