@@ -392,6 +392,15 @@ public:
    }
 
    template<typename T = double>
+   TActionResultPtr<TH1F> Histo(const std::string& branchName, const TH1F& model) {
+      auto theBranchName (branchName);
+      GetDefaultBranchName(theBranchName, "fill the histogram");
+      auto& df = fDerivedPtr->GetDataFrame();
+      TActionResultPtr<TH1F> h (new TH1F(model), df);
+      return CreateAction<T, EActionType::kHisto1D>(theBranchName,h);
+   }
+
+   template<typename T = double>
    TActionResultPtr<TH1F> Histo(const std::string& branchName = "", int nBins = 128) {
       auto theBranchName (branchName);
       GetDefaultBranchName(theBranchName, "fill the histogram");
