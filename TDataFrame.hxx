@@ -18,8 +18,6 @@
 #include <utility> // std::move
 #include <vector>
 
-
-
 /******* meta-utils **********/
 // extract parameter types from a callable object
 template<typename T>
@@ -56,14 +54,14 @@ struct gens : gens<N-1, N-1, S...> {};
 
 template<int ...S>
 struct gens<0, S...>{
-   typedef seq<S...> type;
+   using type = seq<S...>;
 };
 
 
 // IsContainer check for type T
 template<typename T>
 struct IsContainer{
-   typedef typename std::remove_const<T>::type test_type;
+   using test_type = typename std::remove_const<T>::type;
 
    template<typename A>
    static constexpr bool test (
@@ -77,9 +75,9 @@ struct IsContainer{
       typename A::const_iterator * pci = nullptr,
       typename A::value_type * pv = nullptr)
    {
-      typedef typename A::iterator iterator;
-      typedef typename A::const_iterator const_iterator;
-      typedef typename A::value_type value_type;
+      using iterator =  typename A::iterator;
+      using const_iterator = typename A::const_iterator;
+      using value_type = typename A::value_type;
       return  std::is_same<test_type, std::vector<bool>>::value ||
               (std::is_same<decltype(pt->begin()),iterator>::value &&
                std::is_same<decltype(pt->end()),iterator>::value &&
@@ -507,8 +505,8 @@ private:
    template<typename BranchType, EActionType ActionType, typename ActionResultType>
    ActionResultType CreateAction(const std::string& theBranchName, ActionResultType& res) {
       // More types can be added at will at the cost of some compilation time and size of binaries.
-      typedef ActionResultType ART;
-      typedef decltype(this) TT;
+      using ART = ActionResultType;
+      using TT = decltype(this);
       const auto AT = ActionType;
       auto& df = fDerivedPtr->GetDataFrame();
       auto tree = (TTree*) df.GetDirectory()->Get(df.GetTreeName().c_str());
