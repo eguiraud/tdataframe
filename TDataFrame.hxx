@@ -2,9 +2,13 @@
 #define TDATAFRAME
 
 #include "TBranchElement.h"
+#include "TDirectory.h"
 #include "TH1F.h" // For Histo actions
 #include "TTreeReader.h"
 #include "TTreeReaderValue.h"
+#include "TROOT.h" // IsImplicitMTEnabled, GetImplicitMTPoolSize
+#include "ROOT/TSpinMutex.hxx"
+#include "ROOT/TTreeProcessor.hxx"
 
 #include <algorithm> // std::find
 #include <array>
@@ -12,12 +16,15 @@
 #include <memory>
 #include <list>
 #include <string>
+#include <thread>
 #include <type_traits> // std::decay
 #include <typeinfo>
 #include <utility> // std::move
 #include <vector>
 
 /******* meta-utils **********/
+// compile-time list of types
+// std::tuple builds objects when instantiated, TypeList does not
 template<typename...Types>
 struct TypeList {
    static constexpr std::size_t size = sizeof...(Types);
@@ -47,6 +54,21 @@ struct FunctionTraits<R(*)(Args...)> {
    using ArgTypes = TypeList<typename std::decay<Args>::type...>;
    using RetType = R;
 };
+
+// remove first type from TypeList
+template<typename>
+struct RemoveFirst {};
+
+template<typename T, typename...Args>
+struct RemoveFirst<TypeList<T, Args...>> {
+   using Types = TypeList<Args...>;
+};
+
+// returned wrapper around f that adds the unsigned slot parameter
+template<typename R, typename F, typename...Args>
+std::function<R(unsigned, Args...)> AddSlotParameter(F f, TypeList<Args...>) {
+   return [&f] (unsigned, Args...a) -> R { return f(a...); };
+}
 
 // compile-time integer sequence generator
 // e.g. calling gens<3>::type() instantiates a seq<0,1,2>
@@ -164,8 +186,9 @@ const BranchList& PickBranchList(F f, const BranchList& bl, const BranchList& de
 class TDataFrameActionBase {
 public:
    virtual ~TDataFrameActionBase() { }
-   virtual void Run(int entry) = 0;
-   virtual void BuildReaderValues(TTreeReader& r) = 0;
+   virtual void Run(unsigned slot, int entry) = 0;
+   virtual void BuildReaderValues(TTreeReader& r, unsigned slot) = 0;
+   virtual void CreateSlots(unsigned nSlots) = 0;
 };
 using ActionBasePtr = std::unique_ptr<TDataFrameActionBase>;
 using ActionBaseVec = std::vector<ActionBasePtr>;
@@ -174,7 +197,8 @@ using ActionBaseVec = std::vector<ActionBasePtr>;
 class TDataFrameFilterBase {
 public:
    virtual ~TDataFrameFilterBase() { }
-   virtual void BuildReaderValues(TTreeReader& r) = 0;
+   virtual void BuildReaderValues(TTreeReader& r, unsigned slot) = 0;
+   virtual void CreateSlots(unsigned nSlots) = 0;
 };
 using FilterBasePtr = std::unique_ptr<TDataFrameFilterBase>;
 using FilterBaseVec = std::vector<FilterBasePtr>;
@@ -183,9 +207,10 @@ using FilterBaseVec = std::vector<FilterBasePtr>;
 class TDataFrameBranchBase {
 public:
    virtual ~TDataFrameBranchBase() { }
-   virtual void BuildReaderValues(TTreeReader& r) = 0;
+   virtual void BuildReaderValues(TTreeReader& r, unsigned slot) = 0;
+   virtual void CreateSlots(unsigned nSlots) = 0;
    virtual std::string GetName() const = 0;
-   virtual void* GetValue(int entry) = 0;
+   virtual void* GetValue(unsigned slot, int entry) = 0;
    virtual const std::type_info& GetTypeId() const = 0;
 };
 using TmpBranchBasePtr = std::unique_ptr<TDataFrameBranchBase>;
@@ -232,12 +257,12 @@ public:
 
 // Forward declarations
 template<int S, typename T>
-T& GetBranchValue(TVBPtr& readerValues, int entry, const std::string& branch, TDataFrame& df);
+T& GetBranchValue(TVBPtr& readerValue, unsigned slot, int entry, const std::string& branch, TDataFrame& df);
 
 
 template<typename F, typename PrevDataFrame>
 class TDataFrameAction : public TDataFrameActionBase {
-   using BranchTypes = typename FunctionTraits<F>::ArgTypes;
+   using BranchTypes = typename RemoveFirst<typename FunctionTraits<F>::ArgTypes>::Types;
    using TypeInd = typename gens<BranchTypes::size>::type;
 
 public:
@@ -247,33 +272,37 @@ public:
 
    TDataFrameAction(const TDataFrameAction&) = delete;
 
-   void Run(int entry) {
+   void Run(unsigned slot, int entry) {
       // check if entry passes all filters
-      if(CheckFilters(entry))
-         ExecuteAction(entry);
+      if(CheckFilters(slot, entry))
+         ExecuteAction(slot, entry);
    }
 
-   bool CheckFilters(int entry) {
+   bool CheckFilters(unsigned slot, int entry) {
       // start the recursive chain of CheckFilters calls
-      return fPrevData.CheckFilters(entry);
+      return fPrevData.CheckFilters(slot, entry);
    }
 
-   void ExecuteAction(int entry) {
-      ExecuteActionHelper(entry, TypeInd(), BranchTypes());
+   void ExecuteAction(unsigned slot, int entry) {
+      ExecuteActionHelper(slot, entry, TypeInd(), BranchTypes());
    }
 
-   void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
+   void CreateSlots(unsigned nSlots) {
+      fReaderValues.resize(nSlots);
+   }
+
+   void BuildReaderValues(TTreeReader& r, unsigned slot) {
+      fReaderValues[slot] = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
    }
 
 private:
    template<int... S, typename... BranchTypes>
-   void ExecuteActionHelper(int entry, seq<S...>, TypeList<BranchTypes...>) {
+   void ExecuteActionHelper(unsigned slot, int entry, seq<S...>, TypeList<BranchTypes...>) {
       // Take each pointer in tvb, cast it to a pointer to the
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      fAction(::GetBranchValue<S, BranchTypes>(fReaderValues[S], entry, fBranches[S], fFirstData)...);
+      fAction(slot, ::GetBranchValue<S, BranchTypes>(fReaderValues[slot][S], slot, entry, fBranches[S], fFirstData)...);
    }
 
    F fAction;
@@ -281,7 +310,7 @@ private:
    const BranchList fTmpBranches;
    PrevDataFrame& fPrevData;
    TDataFrame& fFirstData;
-   TVBVec fReaderValues;
+   std::vector<TVBVec> fReaderValues;
 };
 
 
@@ -293,45 +322,97 @@ class TDataFrameBranch;
 
 namespace Operations {
    class FillOperation{
-      TH1F* fHist;
+      TH1F* fResultHist;
+      std::vector<TH1F> fHists;
    public:
-      FillOperation(TH1F* h):fHist(h){};
+      FillOperation(TH1F* h, unsigned nSlots)
+         : fResultHist(h), fHists(nSlots) {}
       template<typename T, typename std::enable_if<!IsContainer<T>::value, int>::type = 0>
-      void Exec(T v){fHist->Fill(v); }
+      void Exec(T v, unsigned slot) {
+         fHists[slot].Fill(v);
+      }
       template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
-      void Exec(const T&  vs){for (auto&& v : vs) {fHist->Fill(v);} }
+      void Exec(const T&  vs, unsigned slot){
+         for(auto&& v : vs)
+            fHists[slot].Fill(v);
+      }
+      ~FillOperation() {
+         // FIXME merge fHists in fResultHist
+         fHists[0].Copy(*fResultHist);
+      }
    };
 
    class MinOperation{
-      double* fMinVal;
+      double* fResultMin;
+      std::vector<double> fMins;
    public:
-      MinOperation(double* minVPtr):fMinVal(minVPtr){};
+      MinOperation(double* minVPtr, unsigned nSlots)
+         : fResultMin(minVPtr), fMins(nSlots, std::numeric_limits<double>::max()) {}
       template<typename T, typename std::enable_if<!IsContainer<T>::value, int>::type = 0>
-      void Exec(T v){ *fMinVal = std::min((double)v, *fMinVal);}
+      void Exec(T v, unsigned slot){
+         fMins[slot] = std::min((double)v, fMins[slot]);
+      }
       template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
-      void Exec(const T&  vs){ for(auto&& v : vs) *fMinVal = std::min((double)v, *fMinVal);}
+      void Exec(const T&  vs, unsigned slot){
+         for(auto&& v : vs)
+            fMins[slot] = std::min((double)v, fMins[slot]);
+      }
+      ~MinOperation() {
+         *fResultMin = std::numeric_limits<double>::max();
+         for(auto& m : fMins)
+            *fResultMin = std::min(m, *fResultMin);
+      }
    };
 
    class MaxOperation{
-      double* fMaxVal;
+      double* fResultMax;
+      std::vector<double> fMaxs;
    public:
-      MaxOperation(double* maxVPtr):fMaxVal(maxVPtr){};
+      MaxOperation(double* maxVPtr, unsigned nSlots)
+         : fResultMax(maxVPtr), fMaxs(nSlots, std::numeric_limits<double>::min()) {}
       template<typename T, typename std::enable_if<!IsContainer<T>::value, int>::type = 0>
-      void Exec(T v){ *fMaxVal = std::max((double)v,*fMaxVal);}
+      void Exec(T v, unsigned slot) {
+         fMaxs[slot] = std::max((double)v, fMaxs[slot]);
+      }
       template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
-      void Exec(const T&  vs){ for(auto&& v : vs) *fMaxVal = std::max((double)v,*fMaxVal);}
+      void Exec(const T&  vs, unsigned slot) {
+         for(auto&& v : vs)
+            fMaxs[slot] = std::max((double)v, fMaxs[slot]);
+      }
+      ~MaxOperation() {
+         *fResultMax = std::numeric_limits<double>::min();
+         for(auto& m : fMaxs) {
+            std::cout << m << std::endl;
+            *fResultMax = std::max(m, *fResultMax);
+         }
+      }
    };
 
-   class MeanOperation{
-      unsigned long int n = 0;
-      double* fMeanVal;
+   class MeanOperation {
+      double* fResultMean;
+      std::vector<unsigned long> fCounts;
+      std::vector<double> fMeans;
    public:
-      MeanOperation(double* meanVPtr):fMeanVal(meanVPtr){};
+      MeanOperation(double* meanVPtr, unsigned nSlots)
+         : fResultMean(meanVPtr), fCounts(nSlots, 0), fMeans(nSlots, 0) {}
       template<typename T, typename std::enable_if<!IsContainer<T>::value, int>::type = 0>
-      void Cumulate(T v){ *fMeanVal += v; ++n;}
+      void Cumulate(T v, unsigned slot) {
+         fMeans[slot] += v;
+         fCounts[slot] += 1;
+      }
       template<typename T, typename std::enable_if<IsContainer<T>::value, int>::type = 0>
-      void Cumulate(const T& vs){ for(auto&& v : vs) { *fMeanVal += v; ++n; } }
-      ~MeanOperation(){if (n!=0) *fMeanVal/=n;}
+      void Cumulate(const T& vs, unsigned slot) {
+         for(auto&& v : vs) {
+            fMeans[slot] += v;
+            fCounts[slot] += 1;
+         }
+      }
+      ~MeanOperation() {
+         double sumOfMeans = 0;
+         for(unsigned i = 0; i < fMeans.size(); ++i)
+            sumOfMeans += fMeans[i] / fCounts[i];
+         *fResultMean = sumOfMeans / fMeans.size();
+      }
    };
 }
 
@@ -380,13 +461,16 @@ public:
    void Foreach(F f, const BranchList& bl = {}) {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(f, bl, defBl);
-      using DFA = TDataFrameAction<F, Derived>;
-      Book(std::unique_ptr<DFA>(new DFA(f, actualBl, *fDerivedPtr)));
+      using ArgTypes = typename FunctionTraits<decltype(f)>::ArgTypes;
+      using RetType = typename FunctionTraits<decltype(f)>::RetType;
+      auto fWithSlot = ::AddSlotParameter<RetType>(f, ArgTypes());
+      using DFA = TDataFrameAction<decltype(fWithSlot), Derived>;
+      Book(std::unique_ptr<DFA>(new DFA(fWithSlot, actualBl, *fDerivedPtr)));
    }
 
    TActionResultPtr<unsigned> Count() {
       TActionResultPtr<unsigned> c (std::make_shared<unsigned>(0), fDerivedPtr->GetDataFrame());
-      auto countAction = [&c]() -> void { (*c.getUnchecked())++; };
+      auto countAction = [&c](unsigned slot /*TODO use it*/) -> void { (*c.getUnchecked())++; };
       BranchList bl = {};
       using DFA = TDataFrameAction<decltype(countAction), Derived>;
       Book(std::unique_ptr<DFA>(new DFA(countAction, bl, *fDerivedPtr)));
@@ -469,9 +553,9 @@ private:
 
    template<typename BranchType, typename ThisType>
    struct SimpleAction<BranchType, TH1F, EActionType::kHisto1D, ThisType> {
-      static TActionResultPtr<TH1F> BuildAndBook(ThisType thisFrame, const std::string& theBranchName, std::shared_ptr<TH1F> h) {
-         Operations::FillOperation fillOp(h.get());
-         auto fillLambda = [fillOp](const BranchType& v) mutable { fillOp.Exec(v); };
+      static TActionResultPtr<TH1F> BuildAndBook(ThisType thisFrame, const std::string& theBranchName, std::shared_ptr<TH1F> h, unsigned nSlots) {
+         auto fillOp = std::make_shared<Operations::FillOperation>(h.get(), nSlots);
+         auto fillLambda = [fillOp](unsigned slot, const BranchType& v) mutable { fillOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA = TDataFrameAction<decltype(fillLambda), Derived>;
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(fillLambda, bl, *thisFrame->fDerivedPtr)));
@@ -481,9 +565,9 @@ private:
 
    template<typename BranchType, typename ThisType, typename ActionResultType>
    struct SimpleAction<BranchType, ActionResultType, EActionType::kMin, ThisType> {
-      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string& theBranchName, std::shared_ptr<ActionResultType> minV) {
-         Operations::MinOperation minOp(minV.get());
-         auto minOpLambda = [minOp](const BranchType& v) mutable { minOp.Exec(v); };
+      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string& theBranchName, std::shared_ptr<ActionResultType> minV, unsigned nSlots) {
+         auto minOp = std::make_shared<Operations::MinOperation>(minV.get(), nSlots);
+         auto minOpLambda = [minOp](unsigned slot, const BranchType& v) mutable { minOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA = TDataFrameAction<decltype(minOpLambda), Derived>;
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(minOpLambda, bl, *thisFrame->fDerivedPtr)));
@@ -493,9 +577,9 @@ private:
 
    template<typename BranchType, typename ThisType, typename ActionResultType>
    struct SimpleAction<BranchType, ActionResultType, EActionType::kMax, ThisType> {
-      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string& theBranchName, std::shared_ptr<ActionResultType> maxV) {
-         Operations::MaxOperation maxOp(maxV.get());
-         auto maxOpLambda = [maxOp](const BranchType& v) mutable { maxOp.Exec(v); };
+      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string& theBranchName, std::shared_ptr<ActionResultType> maxV, unsigned nSlots) {
+         auto maxOp = std::make_shared<Operations::MaxOperation>(maxV.get(), nSlots);
+         auto maxOpLambda = [maxOp](unsigned slot, const BranchType& v) mutable { maxOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA = TDataFrameAction<decltype(maxOpLambda), Derived>;
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(maxOpLambda, bl, *thisFrame->fDerivedPtr)));
@@ -505,9 +589,9 @@ private:
 
    template<typename BranchType, typename ThisType, typename ActionResultType>
    struct SimpleAction<BranchType, ActionResultType, EActionType::kMean, ThisType> {
-      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string& theBranchName, std::shared_ptr<ActionResultType> meanV) {
-         Operations::MeanOperation meanOp(meanV.get());
-         auto meanOpLambda = [meanOp](const BranchType& v) mutable { meanOp.Cumulate(v);};
+      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string& theBranchName, std::shared_ptr<ActionResultType> meanV, unsigned nSlots) {
+         auto meanOp = std::make_shared<Operations::MeanOperation>(meanV.get(), nSlots);
+         auto meanOpLambda = [meanOp](unsigned slot, const BranchType& v) mutable { meanOp->Cumulate(v, slot);};
          BranchList bl = {theBranchName};
          using DFA = TDataFrameAction<decltype(meanOpLambda), Derived>;
          thisFrame->Book(std::unique_ptr<DFA>(new DFA(meanOpLambda, bl, *thisFrame->fDerivedPtr)));
@@ -524,38 +608,43 @@ private:
       auto& df = fDerivedPtr->GetDataFrame();
       auto tree = (TTree*) df.GetDirectory()->Get(df.GetTreeName().c_str());
       auto branch = tree->GetBranch(theBranchName.c_str());
+      unsigned nSlots = 1;
+#ifdef R__USE_IMT
+      if(ROOT::IsImplicitMTEnabled())
+         nSlots = ROOT::GetImplicitMTPoolSize();
+#endif // R__USE_IMT
       if(!branch) {
          // temporary branch
          const auto& type_id = df.GetBookedBranch(theBranchName).GetTypeId();
-         if (type_id == typeid(char)) { return SimpleAction<char, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (type_id == typeid(int)) { return SimpleAction<int, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (type_id == typeid(double)) { return SimpleAction<double, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (type_id == typeid(bool)) { return SimpleAction<bool, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (type_id == typeid(std::vector<double>)) { return SimpleAction<std::vector<double>, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (type_id == typeid(std::vector<float>)) { return SimpleAction<std::vector<float>, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
+         if (type_id == typeid(char)) { return SimpleAction<char, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (type_id == typeid(int)) { return SimpleAction<int, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (type_id == typeid(double)) { return SimpleAction<double, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (type_id == typeid(bool)) { return SimpleAction<bool, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (type_id == typeid(std::vector<double>)) { return SimpleAction<std::vector<double>, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (type_id == typeid(std::vector<float>)) { return SimpleAction<std::vector<float>, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
       }
       // real branch
       auto branchEl = dynamic_cast<TBranchElement*>(branch);
       if (!branchEl) { // This is a fundamental type
          auto title = branch->GetTitle();
          auto typeCode = title[strlen(title)-1];
-         if (typeCode == 'B') { return SimpleAction<char, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         // else if (typeCode == 'b') { return SimpleAction<unsigned char, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
+         if (typeCode == 'B') { return SimpleAction<char, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'b') { return SimpleAction<unsigned char, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
          // else if (typeCode == 'S') { return SimpleAction<short, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         // else if (typeCode == 's') { return SimpleAction<unsigned short, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (typeCode == 'I') { return SimpleAction<int, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         // else if (typeCode == 'i') { return SimpleAction<unsigned int, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         // else if (typeCode == 'F') { return SimpleAction<float, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (typeCode == 'D') { return SimpleAction<double, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         // else if (typeCode == 'L') { return SimpleAction<long int, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         // else if (typeCode == 'l') { return SimpleAction<unsigned long int, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (typeCode == 'O') { return SimpleAction<bool, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
+         // else if (typeCode == 's') { return SimpleAction<unsigned short, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (typeCode == 'I') { return SimpleAction<int, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'i') { return SimpleAction<unsigned int, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'F') { return SimpleAction<float, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (typeCode == 'D') { return SimpleAction<double, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'L') { return SimpleAction<long int, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'l') { return SimpleAction<unsigned long int, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (typeCode == 'O') { return SimpleAction<bool, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
       } else {
          std::string typeName = branchEl->GetTypeName();
-         if (typeName == "vector<double>") { return SimpleAction<std::vector<double>, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
-         else if (typeName == "vector<float>") { return SimpleAction<std::vector<int>, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
+         if (typeName == "vector<double>") { return SimpleAction<std::vector<double>, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (typeName == "vector<float>") { return SimpleAction<std::vector<int>, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
       }
-      return SimpleAction<BranchType, ART, AT, TT>::BuildAndBook(this, theBranchName, r);
+      return SimpleAction<BranchType, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots);
    }
 
    template<typename T>
@@ -583,7 +672,7 @@ class TDataFrameBranch : public TDataFrameInterface<TDataFrameBranch<F, PrevData
 public:
    TDataFrameBranch(const std::string& name, F expression, const BranchList& bl, PrevData& pd)
       : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.fTmpBranches),
-        fFirstData(pd.fFirstData), fPrevData(pd), fLastCheckedEntry(-1) {
+        fFirstData(pd.fFirstData), fPrevData(pd) {
       fTmpBranches.emplace_back(name);
    }
 
@@ -593,18 +682,18 @@ public:
       return fFirstData;
    }
 
-   void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
+   void BuildReaderValues(TTreeReader& r, unsigned slot) {
+      fReaderValues[slot] = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
    }
 
-   void* GetValue(int entry) {
-      if(entry != fLastCheckedEntry) {
+   void* GetValue(unsigned slot, int entry) {
+      if(entry != fLastCheckedEntry[slot]) {
          // evaluate this filter, cache the result
-         auto newValuePtr = GetValueHelper(BranchTypes(), TypeInd(), entry);
-         fLastResultPtr.swap(newValuePtr);
-         fLastCheckedEntry = entry;
+         auto newValuePtr = GetValueHelper(BranchTypes(), TypeInd(), slot, entry);
+         fLastResultPtr[slot].swap(newValuePtr);
+         fLastCheckedEntry[slot] = entry;
       }
-      return static_cast<void*>(fLastResultPtr.get());
+      return static_cast<void*>(fLastResultPtr[slot].get());
    }
 
    const std::type_info& GetTypeId() const {
@@ -614,20 +703,26 @@ public:
    template<typename T>
    void Book(std::unique_ptr<T> ptr);
 
-   bool CheckFilters(int entry) {
+   void CreateSlots(unsigned nSlots) {
+      fReaderValues.resize(nSlots);
+      fLastCheckedEntry.resize(nSlots);
+      fLastResultPtr.resize(nSlots);
+   }
+
+   bool CheckFilters(unsigned slot, int entry) {
       // dummy call: it just forwards to the previous object in the chain
-      return fPrevData.CheckFilters(entry);
+      return fPrevData.CheckFilters(slot, entry);
    }
 
    std::string GetName() const { return fName; }
 
 private:
    template<int...S, typename...BranchTypes>
-   std::unique_ptr<RetType> GetValueHelper(TypeList<BranchTypes...>, seq<S...>, int entry) {
+   std::unique_ptr<RetType> GetValueHelper(TypeList<BranchTypes...>, seq<S...>, unsigned slot, int entry) {
       auto valuePtr = std::unique_ptr<RetType>(
          new RetType(
             fExpression(
-               ::GetBranchValue<S, BranchTypes>(fReaderValues[S], entry, fBranches[S], fFirstData)...
+               ::GetBranchValue<S, BranchTypes>(fReaderValues[slot][S], slot, entry, fBranches[S], fFirstData)...
             )
          )
       );
@@ -638,11 +733,11 @@ private:
    F fExpression;
    const BranchList fBranches;
    BranchList fTmpBranches;
-   TVBVec fReaderValues;
-   std::unique_ptr<RetType> fLastResultPtr;
+   std::vector<TVBVec> fReaderValues;
+   std::vector<std::unique_ptr<RetType>> fLastResultPtr;
    TDataFrame& fFirstData;
    PrevData& fPrevData;
-   int fLastCheckedEntry;
+   std::vector<int> fLastCheckedEntry = {-1};
 };
 
 
@@ -662,7 +757,7 @@ class TDataFrameFilter
 public:
    TDataFrameFilter(FilterF f, const BranchList& bl, PrevDataFrame& pd)
       : fFilter(f), fBranches(bl), fTmpBranches(pd.fTmpBranches), fPrevData(pd),
-        fFirstData(pd.fFirstData), fLastCheckedEntry(-1), fLastResult(true) { }
+        fFirstData(pd.fFirstData) { }
 
    TDataFrame& GetDataFrame() const {
       return fFirstData;
@@ -671,31 +766,37 @@ public:
    TDataFrameFilter(const TDataFrameFilter&) = delete;
 
 private:
-   bool CheckFilters(int entry) {
-      if(entry != fLastCheckedEntry) {
-         if(!fPrevData.CheckFilters(entry)) {
+   bool CheckFilters(unsigned slot, int entry) {
+      if(entry != fLastCheckedEntry[slot]) {
+         if(!fPrevData.CheckFilters(slot, entry)) {
             // a filter upstream returned false, cache the result
-            fLastResult = false;
+            fLastResult[slot] = false;
          } else {
             // evaluate this filter, cache the result
-            fLastResult = CheckFilterHelper(BranchTypes(), TypeInd(), entry);
+            fLastResult[slot] = CheckFilterHelper(BranchTypes(), TypeInd(), slot, entry);
          }
-         fLastCheckedEntry = entry;
+         fLastCheckedEntry[slot] = entry;
       }
-      return fLastResult;
+      return fLastResult[slot];
    }
 
    template<int... S, typename... BranchTypes>
-   bool CheckFilterHelper(TypeList<BranchTypes...>, seq<S...>, int entry) {
+   bool CheckFilterHelper(TypeList<BranchTypes...>, seq<S...>, unsigned slot, int entry) {
       // Take each pointer in tvb, cast it to a pointer to the
       // correct specialization of TTreeReaderValue, and get its content.
       // S expands to a sequence of integers 0 to sizeof...(types)-1
       // S and types are expanded simultaneously by "..."
-      return fFilter(::GetBranchValue<S, BranchTypes>(fReaderValues[S], entry, fBranches[S], fFirstData) ...);
+      return fFilter(::GetBranchValue<S, BranchTypes>(fReaderValues[slot][S], slot, entry, fBranches[S], fFirstData) ...);
    }
 
-   void BuildReaderValues(TTreeReader& r) {
-      fReaderValues = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
+   void BuildReaderValues(TTreeReader& r, unsigned slot) {
+      fReaderValues[slot] = ::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes(), TypeInd());
+   }
+
+   void CreateSlots(unsigned nSlots) {
+      fReaderValues.resize(nSlots);
+      fLastCheckedEntry.resize(nSlots);
+      fLastResult.resize(nSlots);
    }
 
    template<typename T>
@@ -706,9 +807,9 @@ private:
    const BranchList fTmpBranches;
    PrevDataFrame& fPrevData;
    TDataFrame& fFirstData;
-   TVBVec fReaderValues;
-   int fLastCheckedEntry;
-   bool fLastResult;
+   std::vector<TVBVec> fReaderValues = {};
+   std::vector<int> fLastCheckedEntry = {-1};
+   std::vector<bool> fLastResult = {true};
 };
 
 
@@ -728,27 +829,63 @@ public:
       : fTree(&tree),
         fDefaultBranches(defaultBranches), fFirstData(*this) { }
 
-
    TDataFrame(const TDataFrame&) = delete;
 
    void Run() {
-      TTreeReader r;
-      if (fTree) r.SetTree(fTree);
-      else r.SetTree(fTreeName.c_str(), fDirPtr);
+#ifdef R__USE_IMT
+      if(ROOT::IsImplicitMTEnabled()) {
+         const auto fileName = fTree ? static_cast<TFile*>(fTree->GetCurrentFile())->GetName() : fDirPtr->GetName();
+         const std::string treeName = fTree ? fTree->GetName() : fTreeName;
+         ROOT::TTreeProcessor tp(fileName, treeName);
+         ROOT::TSpinMutex slotMutex;
+         std::map<std::thread::id, unsigned int> slotMap;
+         unsigned globalSlotIndex = 0;
+         CreateSlots(ROOT::GetImplicitMTPoolSize());
+         tp.Process([this, &slotMutex, &globalSlotIndex, &slotMap] (TTreeReader& r) -> void {
+            const auto thisThreadID = std::this_thread::get_id();
+            unsigned slot;
+            {
+               std::lock_guard<ROOT::TSpinMutex> l(slotMutex);
+               auto thisSlotIt = slotMap.find(thisThreadID);
+               if (thisSlotIt != slotMap.end()) {
+                  slot = thisSlotIt->second;
+               } else {
+                  slot = globalSlotIndex;
+                  slotMap[thisThreadID] = slot;
+                  ++globalSlotIndex;
+               }
+               std::cout << "slot: " << slot << std::endl;
+            }
 
-      // build reader values for all actions, filters and branches
-      for(auto& ptr : fBookedActions)
-         ptr->BuildReaderValues(r);
-      for(auto& ptr : fBookedFilters)
-         ptr->BuildReaderValues(r);
-      for(auto& bookedBranch : fBookedBranches)
-         bookedBranch.second->BuildReaderValues(r);
+            std::cout << "slot " << slot << " building reader values" << std::endl;
+            std::cout << "slot " << slot << " TTreeReader address " << &r << std::endl;
+            BuildAllReaderValues(r, slot); // TODO: if TTreeProcessor reuses the same TTreeReader object there is no need to re-build the TTreeReaderValues
 
-      // recursive call to check filters and conditionally executing actions
-      while(r.Next())
-         for(auto& actionPtr : fBookedActions)
-            actionPtr->Run(r.GetCurrentEntry());
+            // recursive call to check filters and conditionally execute actions
+            std::cout << "slot " << slot << " looping" << std::endl;
+            while(r.Next())
+               for(auto& actionPtr : fBookedActions)
+                  actionPtr->Run(slot, r.GetCurrentEntry());
+            std::cout << "slot " << slot << " done looping" << std::endl;
+         });
+      } else {
+#endif // R__USE_IMT
+         TTreeReader r;
+         if (fTree) r.SetTree(fTree);
+         else r.SetTree(fTreeName.c_str(), fDirPtr);
 
+         CreateSlots(1);
+         BuildAllReaderValues(r, 0);
+
+         // recursive call to check filters and conditionally execute actions
+         while(r.Next())
+            for(auto& actionPtr : fBookedActions)
+               actionPtr->Run(0, r.GetCurrentEntry());
+#ifdef R__USE_IMT
+      }
+#endif // R__USE_IMT
+
+      std::cout << "forgetting everything" << std::endl;
       // forget everything
       fBookedActions.clear();
       fBookedFilters.clear();
@@ -757,6 +894,26 @@ public:
          aptr->SetReady();
       }
       fActionResultsPtrs.clear();
+   }
+
+   // build reader values for all actions, filters and branches
+   void BuildAllReaderValues(TTreeReader& r, unsigned slot) {
+      for(auto& ptr : fBookedActions)
+         ptr->BuildReaderValues(r, slot);
+      for(auto& ptr : fBookedFilters)
+         ptr->BuildReaderValues(r, slot);
+      for(auto& bookedBranch : fBookedBranches)
+         bookedBranch.second->BuildReaderValues(r, slot);
+   }
+
+   // inform all actions filters and branches of the required number of slots
+   void CreateSlots(unsigned nSlots) {
+      for(auto& ptr : fBookedActions)
+         ptr->CreateSlots(nSlots);
+      for(auto& ptr : fBookedFilters)
+         ptr->CreateSlots(nSlots);
+      for(auto& bookedBranch : fBookedBranches)
+         bookedBranch.second->CreateSlots(nSlots);
    }
 
    TDataFrame& GetDataFrame() const {
@@ -771,8 +928,8 @@ public:
       return *fBookedBranches.find(name)->second.get();
    }
 
-   void* GetTmpBranchValue(const std::string& branch, int entry) {
-      return fBookedBranches.at(branch)->GetValue(entry);
+   void* GetTmpBranchValue(const std::string& branch, unsigned slot, int entry) {
+      return fBookedBranches.at(branch)->GetValue(slot, entry);
    }
 
    TDirectory* GetDirectory() const {
@@ -797,7 +954,7 @@ private:
    }
 
    // dummy call, end of recursive chain of calls
-   bool CheckFilters(int) {
+   bool CheckFilters(int, unsigned) {
       return true;
    }
 
@@ -823,11 +980,11 @@ private:
 
 //********* FUNCTION AND METHOD DEFINITIONS *********//
 template<int S, typename T>
-T& GetBranchValue(TVBPtr& readerValue, int entry, const std::string& branch, TDataFrame& df)
+T& GetBranchValue(TVBPtr& readerValue, unsigned slot, int entry, const std::string& branch, TDataFrame& df)
 {
    if(readerValue == nullptr) {
       // temporary branch
-      void* tmpBranchVal = df.GetTmpBranchValue(branch, entry);
+      void* tmpBranchVal = df.GetTmpBranchValue(branch, slot, entry);
       return *static_cast<T*>(tmpBranchVal);
    } else {
       // real branch
