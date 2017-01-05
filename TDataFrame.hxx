@@ -328,6 +328,15 @@ namespace Operations {
    };
 }
 
+
+enum class EActionType : short {
+   kHisto1D,
+   kMin,
+   kMax,
+   kMean
+};
+
+
 // this class provides a common public interface to TDataFrame and TDataFrameFilter
 // it contains the Filter call and all action calls
 template<typename Derived>
@@ -453,15 +462,13 @@ private:
       }
    }
 
-   enum class EActionType : short {kHisto1D, kMin, kMax, kMean};
-
    template<typename BranchType, typename ActionResultType, enum EActionType, typename ThisType>
    struct SimpleAction{
       static void BuildAndBook(ThisType, const std::string&, ActionResultType&){}
    };
 
    template<typename BranchType, typename ThisType>
-   struct SimpleAction<BranchType, TActionResultPtr<TH1F>, TDataFrameInterface<Derived>::EActionType::kHisto1D, ThisType> {
+   struct SimpleAction<BranchType, TActionResultPtr<TH1F>, EActionType::kHisto1D, ThisType> {
       static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<TH1F>& h){
          auto hv = h.getUnchecked();
          Operations::FillOperation fa(hv);
@@ -473,7 +480,7 @@ private:
    };
 
    template<typename BranchType, typename ThisType>
-   struct SimpleAction<BranchType, TActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMin, ThisType> {
+   struct SimpleAction<BranchType, TActionResultPtr<double>, EActionType::kMin, ThisType> {
       static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<double>& minV){
          auto minVPtr = minV.getUnchecked();
          *minVPtr = std::numeric_limits<double>::max();
@@ -486,7 +493,7 @@ private:
    };
 
    template<typename BranchType, typename ThisType>
-   struct SimpleAction<BranchType, TActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMax, ThisType> {
+   struct SimpleAction<BranchType, TActionResultPtr<double>, EActionType::kMax, ThisType> {
       static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<double>& maxV){
          auto maxVPtr = maxV.getUnchecked();
          *maxVPtr = std::numeric_limits<double>::min();
@@ -499,7 +506,7 @@ private:
    };
 
    template<typename BranchType, typename ThisType>
-   struct SimpleAction<BranchType, TActionResultPtr<double>, TDataFrameInterface<Derived>::EActionType::kMean, ThisType> {
+   struct SimpleAction<BranchType, TActionResultPtr<double>, EActionType::kMean, ThisType> {
       static void BuildAndBook(ThisType thisFrame, const std::string& theBranchName, TActionResultPtr<double>& meanV){
          auto meanVPtr = meanV.getUnchecked();
          *meanVPtr = 0.;
