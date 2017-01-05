@@ -7,4 +7,4 @@ all: $(TESTS)
 
 .PHONY: clean
 clean: ;\
-   rm -rf $(TESTS)
+   rm -rf $(TESTS) *.root
