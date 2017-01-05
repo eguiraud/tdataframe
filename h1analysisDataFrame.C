@@ -109,10 +109,10 @@ void Plot(TH1& hdmd, TH2& /*h2*/) {
 //_____________________________________________________________________
 void h1analysisDataFrame() {
    TChain chain("h42");
-   chain.Add("http://root.cern.ch/root/h1analysis/dstarmb.root");
-   chain.Add("http://root.cern.ch/root/h1analysis/dstarp1a.root");
-   chain.Add("http://root.cern.ch/root/h1analysis/dstarp1b.root");
-   chain.Add("http://root.cern.ch/root/h1analysis/dstarp2.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarmb.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp1a.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp1b.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp2.root");
 
    TDataFrame dataFrame(chain);
    auto& selected = Select(dataFrame);
