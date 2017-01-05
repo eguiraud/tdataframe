@@ -512,7 +512,7 @@ private:
    };
 
    template<typename BranchType, EActionType ActionType, typename ActionResultType>
-   ActionResultType CreateAction(const std::string& theBranchName, ActionResultType& res) {
+   ActionResultType CreateAction(const std::string& theBranchName, ActionResultType res) {
       // More types can be added at will at the cost of some compilation time and size of binaries.
       using ART = ActionResultType;
       using TT = decltype(this);
