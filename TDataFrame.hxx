@@ -226,7 +226,6 @@ public:
 
 
 // Forward declarations
-class TDataFrame;
 template<int S, typename T>
 T& GetBranchValue(TVBPtr& readerValues, int entry, const std::string& branch, TDataFrame& df);
 
