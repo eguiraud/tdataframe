@@ -1,13 +1,16 @@
 #!/bin/bash
-pushd ../tests
+
+echo "building test executables..."
+pushd ../tests > /dev/null
 make
 RES=$?
 if (( $RES > 0 )); then
    echo "error building tests"
    exit 1
 fi
-popd
+popd > /dev/null
 
+echo "checking executables..."
 FILES=(test2 tdf001_introduction tdf002_dataModel)
 RETCODE=0
 for F in ${FILES[@]}; do
@@ -22,6 +25,7 @@ for F in ${FILES[@]}; do
    fi
 done
 
+echo "checking macros..."
 MACROS=(test_ctors)
 for M in ${MACROS[@]}; do
    root -b -l -n -q -x ../tests/${M}.cxx | diff ${M}.out - > /dev/null
