@@ -1,0 +1,123 @@
+#include "TDataFrame.hxx"
+
+//_____________________________________________________________________
+auto& Select(TDataFrame& dataFrame) {
+   return dataFrame
+   .Filter([](double md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
+           {"md0_d"}).Trace("md0")
+   .Filter([](double ptds_d) { return ptds_d > 2.5; }, {"ptds_d"}).Trace("ptds")
+   .Filter([](double etads_d) { return TMath::Abs(etads_d) < 1.5; }, {"etads_d"}).Trace("etads")
+   .Filter([](int ik, int ipi, const std::vector<int>& nhitrp) { return nhitrp[ik-1] * nhitrp[ipi-1] > 1; },
+           {"ik", "ipi", "nhitrp"}).Trace("hits")
+   .Filter([](int ik, const std::vector<float>& rend, const std::vector<float>& rstart) {
+      return rend[ik-1] - rstart[ik-1] > 22; },
+           {"rbegin", "rend", "ik"}).Trace("klen")
+   .Filter([](int ipi, const std::vector<float>& rend, const std::vector<float>& rstart) {
+      return rend[ipi-1] - rstart[ipi-1] > 22; },
+           {"rbegin", "rend", "ipi"}).Trace("pilen")
+   .Filter([](int ik, const std::vector<float>& nlhk) { return nlhk[ik-1] > 0.1; }, {"ik", "nlhk"}).Trace("nlhk")
+   .Filter([](int ipi, const std::vector<float>& nlhpi) { return nlhpi[ipi-1] > 0.1; }, {"ipi", "nlhpi"}).Trace("nlhpi")
+   .Filter([](const std::vector<float>& nlhpi, int ipis) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "nlhpi"}).Trace("nlhpi")
+   .Filter([](int njets) { return njets >= 1; }, {"njets"}) /* can't do .Trace("njets") just yet */;
+}
+
+const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
+
+//_____________________________________________________________________
+Double_t fdm5(Double_t *xx, Double_t *par)
+{
+   Double_t x = xx[0];
+   if (x <= 0.13957) return 0;
+   Double_t xp3 = (x-par[3])*(x-par[3]);
+   Double_t res = dxbin*(par[0]*TMath::Power(x-0.13957, par[1])
+                         + par[2] / 2.5066/par[4]*TMath::Exp(-xp3/2/par[4]/par[4]));
+   return res;
+}
+
+//_____________________________________________________________________
+Double_t fdm2(Double_t *xx, Double_t *par)
+{
+   static const Double_t sigma = 0.0012;
+   Double_t x = xx[0];
+   if (x <= 0.13957) return 0;
+   Double_t xp3 = (x-0.1454)*(x-0.1454);
+   Double_t res = dxbin*(par[0]*TMath::Power(x-0.13957, 0.25)
+                         + par[1] / 2.5066/sigma*TMath::Exp(-xp3/2/sigma/sigma));
+   return res;
+}
+
+//_____________________________________________________________________
+void Fit(TH1& hdmd, TH2& h2) {
+   if (gROOT->GetListOfFunctions()->FindObject("f5"))
+      delete gROOT->GetFunction("f5");
+   TF1 *f5 = new TF1("f5",fdm5,0.139,0.17,5);
+   f5->SetParameters(1000000, .25, 2000, .1454, .001);
+   //fit histogram hdmd with function f5 using the loglikelihood option
+   hdmd.Fit("f5","lr");
+
+   // Project slices of 2-d histogram h2 along X , then fit each slice
+   // with function f2 and make a histogram for each fit parameter
+   // Note that the generated histograms are added to the list of objects
+   // in the current directory.
+   if (gROOT->GetListOfFunctions()->FindObject("f2"))
+      delete gROOT->GetFunction("f2");
+   TF1 *f2 = new TF1("f2",fdm2,0.139,0.17,2);
+   f2->SetParameters(10000, 10);
+   h2.FitSlicesX(f2,0,-1,1,"qln");
+}
+
+//_____________________________________________________________________
+void Plot(TH1& hdmd, TH2& /*h2*/) {
+   //create the canvas for the h1analysis fit
+   gStyle->SetOptFit();
+   TCanvas *c1 = new TCanvas("c1","h1analysis analysis",10,10,800,600);
+   c1->SetBottomMargin(0.15);
+   hdmd.GetXaxis()->SetTitle("m_{K#pi#pi} - m_{K#pi}[GeV/c^{2}]");
+   hdmd.GetXaxis()->SetTitleOffset(1.4);
+
+   //create the canvas for tau d0
+   gStyle->SetOptFit(0);
+   gStyle->SetOptStat(1100);
+   TCanvas *c2 = new TCanvas("c2","tauD0",100,100,800,600);
+   c2->SetGrid();
+   c2->SetBottomMargin(0.15);
+
+   TH1D *h2_1 = (TH1D*)gDirectory->Get("h2_1");
+   h2_1->GetXaxis()->SetTitle("#tau[ps]");
+   h2_1->SetMarkerStyle(21);
+   h2_1->Draw();
+   c2->Update();
+   TLine *line = new TLine(0,0,0,c2->GetUymax());
+   line->Draw();
+
+   // Have the number of entries on the first histogram (to cross check when running
+   // with entry lists)
+   TPaveStats *psdmd = (TPaveStats *)hdmd.GetListOfFunctions()->FindObject("stats");
+   psdmd->SetOptStat(1110);
+   c1->Modified();
+}
+
+//_____________________________________________________________________
+void h1analysisDataFrame() {
+   TChain chain("h42");
+   chain.Add("http://root.cern.ch/files/h1/dstarmb.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp1a.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp1b.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp2.root");
+
+   TDataFrame dataFrame(chain);
+   auto& selected = Select(dataFrame);
+
+   TH1F hdmd("hdmd", "Dm_d",40,0.13,0.17);
+   TH2F h2("h2","ptD0 vs Dm_d",30,0.135,0.165,30,-3,6);
+   selected.Foreach([&hdmd](double dm_d) { hdmd.Fill(dm_d); }, {"dm_d"});
+   selected.Foreach([&h2](float dm_d, float rpd0_t, float ptd0_d) {
+                       h2.Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
+                    {"dm_d", "rpd0_t", "ptd0_d"});
+
+   Fit(hdmd, h2);
+   Plot(hdmd, h2);
+
+   // Print tracing, also from ~TDataFrame():
+   std::cout << "Entries in chain: " << chain.GetEntries() << std::endl;
+}
