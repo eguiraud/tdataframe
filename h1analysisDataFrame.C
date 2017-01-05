@@ -117,4 +117,7 @@ void h1analysisDataFrame() {
 
    Fit(hdmd, h2);
    Plot(hdmd, h2);
+
+   // Print tracing, also from ~TDataFrame():
+   std::cout << "Entries in chain: " << chain.GetEntries() << std::endl;
 }
