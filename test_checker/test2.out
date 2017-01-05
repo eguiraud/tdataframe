@@ -54,3 +54,29 @@ Histo4: nEntries 290
 10
 AddBranch Histo entries: 10
 AddBranch Histo mean: 60.9524
+Min b2: 0
+Min dv: -1
+Max b2: 361
+Max dv: 19
+Mean b2: 123.5
+Mean dv: 5.13793
+0
+4
+16
+36
+64
+100
+144
+196
+256
+324
+61.0508
+61.0952
+34.6024
+39.6674
+77.2068
+28.8421
+90.5761
+115.616
+50.1965
+50.6713
