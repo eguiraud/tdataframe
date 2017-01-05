@@ -729,7 +729,7 @@ public:
         fDefaultBranches(defaultBranches), fFirstData(*this) { }
 
    TDataFrame(TTree& tree, const BranchList& defaultBranches = {})
-      : fTree(&tree), fDirPtr(nullptr),
+      : fTree(&tree),
         fDefaultBranches(defaultBranches), fFirstData(*this) { }
 
 
@@ -815,8 +815,8 @@ private:
    std::map<std::string, TmpBranchBasePtr> fBookedBranches;
    TActionResultPtrBaseVec fActionResultsPtrs;
    std::string fTreeName;
-   TDirectory* fDirPtr;
-   TTree* fTree;
+   TDirectory* fDirPtr = nullptr;
+   TTree* fTree = nullptr;
    const BranchList fDefaultBranches;
    // always empty: each object in the chain copies this list from the previous
    // and they must copy an empty list from the base TDataFrame
