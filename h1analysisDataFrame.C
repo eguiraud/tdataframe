@@ -1,7 +1,6 @@
 #include "TDataFrame.hxx"
 
-const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
-
+//_____________________________________________________________________
 auto& Select(TDataFrame& dataFrame) {
    return dataFrame
    .Filter([](double md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
@@ -21,6 +20,8 @@ auto& Select(TDataFrame& dataFrame) {
    .Filter([](const std::vector<float>& nlhpi, int ipis) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "n1jpi"})
    .Filter([](int njets) { return njets >= 1; }, {"njets"});
 }
+
+const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
 
 //_____________________________________________________________________
 Double_t fdm5(Double_t *xx, Double_t *par)
@@ -45,6 +46,7 @@ Double_t fdm2(Double_t *xx, Double_t *par)
    return res;
 }
 
+//_____________________________________________________________________
 void Fit(TH1& hdmd, TH2& h2) {
    if (gROOT->GetListOfFunctions()->FindObject("f5"))
       delete gROOT->GetFunction("f5");
@@ -64,6 +66,7 @@ void Fit(TH1& hdmd, TH2& h2) {
    h2.FitSlicesX(f2,0,-1,1,"qln");
 }
 
+//_____________________________________________________________________
 void Plot(TH1& hdmd, TH2& /*h2*/) {
    //create the canvas for the h1analysis fit
    gStyle->SetOptFit();
@@ -94,6 +97,7 @@ void Plot(TH1& hdmd, TH2& /*h2*/) {
    c1->Modified();
 }
 
+//_____________________________________________________________________
 void h1analysisDataFrame() {
    TChain chain("h42");
    chain.Add("http://root.cern.ch/root/h1analysis/dstarmb.root");
