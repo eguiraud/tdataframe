@@ -5,20 +5,20 @@ auto& Select(TDataFrame& dataFrame) {
    return dataFrame
    .Filter([](double md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
            {"md0_d"}).Trace("md0")
-   .Filter([](double ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
-   .Filter([](double etads_d) { return TMath::Abs(etads_d) < 1.5; }, {"etads_d"})
+   .Filter([](double ptds_d) { return ptds_d > 2.5; }, {"ptds_d"}).Trace("ptds")
+   .Filter([](double etads_d) { return TMath::Abs(etads_d) < 1.5; }, {"etads_d"}).Trace("etads")
    .Filter([](int ik, int ipi, const std::vector<int>& nhitrp) { return nhitrp[ik-1] * nhitrp[ipi-1] > 1; },
-           {"ik", "ipi", "nhitrp"})
+           {"ik", "ipi", "nhitrp"}).Trace("hits")
    .Filter([](int ik, const std::vector<float>& rend, const std::vector<float>& rstart) {
       return rend[ik-1] - rstart[ik-1] > 22; },
-           {"rbegin", "rend", "ik"})
+           {"rbegin", "rend", "ik"}).Trace("klen")
    .Filter([](int ipi, const std::vector<float>& rend, const std::vector<float>& rstart) {
       return rend[ipi-1] - rstart[ipi-1] > 22; },
-           {"rbegin", "rend", "ipi"})
-   .Filter([](int ik, const std::vector<float>& nlhk) { return nlhk[ik-1] > 0.1; }, {"ik", "n1hk"})
-   .Filter([](int ipi, const std::vector<float>& nlhpi) { return nlhpi[ipi-1] > 0.1; }, {"ipi", "n1hpi"})
-   .Filter([](const std::vector<float>& nlhpi, int ipis) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "n1jpi"})
-   .Filter([](int njets) { return njets >= 1; }, {"njets"});
+           {"rbegin", "rend", "ipi"}).Trace("pilen")
+   .Filter([](int ik, const std::vector<float>& nlhk) { return nlhk[ik-1] > 0.1; }, {"ik", "nlhk"}).Trace("nlhk")
+   .Filter([](int ipi, const std::vector<float>& nlhpi) { return nlhpi[ipi-1] > 0.1; }, {"ipi", "nlhpi"}).Trace("nlhpi")
+   .Filter([](const std::vector<float>& nlhpi, int ipis) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "nlhpi"}).Trace("nlhpi")
+   .Filter([](int njets) { return njets >= 1; }, {"njets"}) /* can't do .Trace("njets") just yet */;
 }
 
 const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
