@@ -80,7 +80,7 @@ int tdf002_dataModel() {
    // ## Operating on branches which are collection of objects
    // Here we deal with the simplest of the cuts: we decide to accept the event
    // only if the number of tracks is greater than 5.
-   auto n_cut = [](const FourVectors & tracks) { return tracks.size() > 5; };
+   auto n_cut = [](const FourVectors & tracks) { return tracks.size() > 8; };
    auto nentries = d.Filter(n_cut, {"tracks"})
                    .Count();
 

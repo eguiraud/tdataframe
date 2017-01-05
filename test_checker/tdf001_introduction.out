@@ -1,11 +1,11 @@
 2 entries passed all filters
-The mean is always included between the min and the max: 1 <= 2 <= 3
-
-selected b1 entries
+The mean is always included between the min and the max: 1 <= 5 <= 3
+Selected b1 entries
 0 1 2 3 4 
 The type of b1Vec isvector<double>
-
-filled h 5 times, mean: 2
-
-h filled with 5 entries
-After the cuts, we are left with 2 entries
+Filled h 5 times, mean: 2
+Filled h with 5 entries
+Events passing cutb1: 5
+Events passing cutb1b2: 2
+Events passing both: 2
+8
