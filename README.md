@@ -53,15 +53,7 @@ root -b example.cpp
 ## Perks
 * lazy evaluation: filters are only applied when an action is performed. This allows for parallelisation and other optimisations to be performed
 * a default set of branches can be specified when constructing a `TDataFrame`. It will be used as fallback when a set specific to the filter/action is not specified
-* parallel `foreach` actions are supported:
-```c++
-   ROOT::EnableImplicitMT();
-   ROOT::TThreadedObject<TH1F> h("h", "h", 100, 0, 1); // thread-safe TH1F
-   TDataFrame d(tree_name, file_ptr, {"default_branch"});
-   d.filter([]() { return true; }, {})
-    .foreach([&h](double def_b) { th_h->Fill(def_b); }); // parallel over tree entries
-   th_h.Merge();
-```
+* transparent parallelisation of loops over trees becomes possible
 * does not require any change to ROOT
 * no jitting is performed, the framework only relies on c++11 features and c++ templates
 * runtime errors in case of branch-variable type mismatch:
@@ -75,55 +67,35 @@ root -b example.cpp
 * `TDataFrame` can do everything a TSelector or a raw loop over a TTreeReader can
 
 ## Example code
-This should compile against ROOT's master (or ROOT v6.08.2).
-It will not run because you don't have my test tree, I'm just putting this here as an example snippet.
-Parallel processing requires ROOT to be compiled with `-Dimt=ON` (support for implicit multi-threading enabled).
-
 ```c++
-#include "TFile.h"
-#include "TDataFrame.hpp"                                                       
-#include "ROOT/TThreadedObject.hxx"                                             
-#include "TH1F.h"
-
-int main() {                                                                    
-   TFile file("mytree.root");                                                   
-   TDataFrame d("mytree", &file);                                               
-   
-   // define filters                                                            
-   auto cutx = [](double x) { return x < 5.; };                              
-   auto cutxy = [](int x, double y) { return x % 2 && y < 4.; };          
-                                                                                 
-   // `get` action         
-   std::list<double> x_cut = d.filter(cutx, {"x"}).get<double>("x");
-                                                                                
-   // `fillhist` action                                                
-   TH1F hist = d.filter(cutx, {"x"}).fillhist("x");    
-                                                                                
-   // on-the-fly filter and `foreach` action      
-   TH1F h("h", "h", 10, 0, 1);                                                
-   d.filter([](int y) { return y > 0; }, {"y"})                         
-    .foreach([&h](double y) { h.Fill(y); }, {"y"});                          
-                                                                 
-   // parallel `foreach`: same thing but in multi-threading                     
-   ROOT::EnableImplicitMT();                                                   
-   ROOT::TThreadedObject<TH1F> th_h("h", "h", 10, 0, 1);   // thread-safe TH1F                
-   d.filter([](int x) { return x % 2 == 0; }, {"x"})       // parallel loop over entries  
-    .foreach({"x"}, [&th_h](double x) { th_h->Fill(x); }); // multi-thread filling is performed
-   th_h.Merge();                                      
-                                                                                
-   // default branch specified in TDataFrame ctor, so no need to pass it to `filter`
-   // unless we specify a different one
-   TDataFrame d2("mytree", &file, {"x"});                                      
-   std::list<unsigned> entries2 = d2.filter(cutx).filter(cutxy, {"x", "y"}).collect_entries();
-   
-   return 0;                                                                    
-}               
-
+#include "TDataFrame.hxx"
+TFile file(fileName);
+// build dataframe like you would build a TTreeReader
+// the branch list is used as fallback whenever none is specified
+TDataFrame d(treeName, &file, {"b1","b2"});
+// apply a cut and save the state of the chain
+auto& filteredDF = d.Filter(myBigCut);
+// plot branch "b1" at this point of the chain. no need to specify the type if it's a common one, e.g. double
+auto h1 = filteredDF.Histo("b1");
+// create a new branch "v" with a vector extracted from a complex object (only for filtered entries)
+// from now on we can refer to "v" as if it was a real branch
+auto& newBranchDF = filtered.AddBranch("v", [](const Obj& o) { return o.getVector(); }, {"obj"});
+// apply a cut and fill a histogram with "v"
+// since "v" is a vector type we loop over it and fill the histogram with its elements
+// since "v" is a vector of a common type, say double, we do not need to specify the type
+auto h2 = newBranchDF.Filter(cut1).Histo("v");
+// apply a different cut and fill a new histogram
+auto h3 = newBranchDF.Filter(cut2).Histo("v");
+// as soon as we access the result of one of the actions, the whole (forked) functional chain is run
+// objects read from each branch are built once and never copied around
+h2->Draw();
+// h1 and h3 have also been filled during the run, no need to loop again when we access their content
+h3->Draw("SAME");      
 ```
 
 ## Project files description
-* `TDataFrame.hpp`: functional chain implementation
-* `tdf001_introduction.C`: example usage/tutorial/unit testing
-* `tdf001_introduction.ipynb`: ipython notebook with same content as %.C
-* `makefile`: minimal makefile, assumes `root-config` is in path
+* `TDataFrame.hxx`: functional chain implementation
+* `tests/*.cxx`: example usage/tutorial/unit testing
+* `notebooks/*.ipynb`: ipython notebook with same content as %.C
+* `test_checker/check.sh`: minimal test checker
 * `README.md`: this document
