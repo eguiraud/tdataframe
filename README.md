@@ -7,11 +7,11 @@
 The main aim of this project is to allow ROOT users to easily operate on branches of a TTree by using functional chains.
 This makes it possible to process trees this way:
 ```c++
-TDataFrame d(tree_name, file_ptr);
-auto neg = [](int x) { return x < 0; };
+TDataFrame d(treeName, filePtr);
+auto isNeg = [](int x) { return x < 0; };
 TH1F h;
 auto fill = [&h](double x, double y) { h->Fill(sqrt(x*x + y*y)); };
-d.filter(neg, {"theta"}).foreach(fill, {"pt_x", "pt_y"});
+d.Filter(isNeg, {"theta"}).foreach(fill, {"pt_x", "pt_y"});
 ```
 No need for TSelectors or TTreeReader loops anymore. As a huge plus, parallelisation, caching and other optimisations are performed transparently or requiring only minimal action on the user's part.
 
@@ -37,11 +37,11 @@ A functional chain ends with an *action* call, indicating an operation that will
 Non-exhaustive list of actions (easy to implement more):
     * `Count`: return the number of entries (that passed all filters)
     * `Min,Max,Mean`: 
-    * `get<T>("branch")`: return a `list<T>` of values of "branch"
+    * `Get<T>("branch")`: return a `list<T>` of values of "branch"
     * `Histo("branch")`: return a TH1 filled with the values of "branch"
     * `Foreach(<function>, {"branch1", "branch2"})`: apply `function` to "branch1" and "branch2", once per entry
 
-See [below](#example-code) for some examples.
+See [below](#example-code) for an example, or...
 
 ## Run example on lxplus7 in 5 commands
 ```bash
@@ -49,7 +49,7 @@ ssh lxplus7
 . /cvmfs/sft.cern.ch/lcg/app/releases/ROOT/6.08.02/x86_64-centos7-gcc48-opt/root/bin/thisroot.sh
 git clone https://github.com/bluehood/tdataframe
 cd tdataframe
-root -b example.cpp
+root -b tests/test2.cxx
 ```
 
 ## Perks
@@ -64,12 +64,12 @@ root -b example.cpp
     Error: the branch contains data of type double.
     It cannot be accessed by a TTreeReaderValue<int>.
 ```
-* trivial filters are allowed: `c++ d.filter([]() { return true; }, {});` (might be useful if the lambda captures something)
 * static sanity checks where possible (e.g. filter lambdas must return a bool)
 * exception-throwing runtime sanity checks (e.g. number of branches == number of lambda arguments)
 * `TDataFrame` can do everything a TSelector or a raw loop over a TTreeReader can
 
 ## Example code
+The following snippet of code applies a strict cut to all events, creates a new temporary branch from the remaining ones, and then "forks" the stream of actions to apply two different cuts and fill histograms with the values contained in the temporary branch.
 ```c++
 #include "TDataFrame.hxx"
 TFile file(fileName);
