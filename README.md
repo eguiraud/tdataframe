@@ -29,15 +29,17 @@ Try this interactively in your browser now:
 ## Quick rundown
 1. **Build the dataframe**
 `TDataFrame` represents the entry point to your dataset. 
-2. **Apply some cuts**
-Starting from a `TDataFrame`, one or more `filter` calls can be chained together to apply a series of cuts (i.e. filters) to the tree entries.
-3. **Operate on entries that pass all cuts**
-After filtering, an *action* must be invoked, and it will be performed on each entry that passes all filters.
+2. **Apply some transformations**
+   * **cuts**: one or more `Filter` calls can be chained together to apply a series of cuts (i.e. filters) to the tree entries
+   * **create temporary branches/columns**: new quantities can be calculated using branch values and can subsequently be referred to as if they were real branches
+3. **Execute actions**
+A functional chain ends with an *action* call, indicating an operation that will be performed on each entry that passes all filters.
 Non-exhaustive list of actions (easy to implement more):
-    * `count()`: return the number of entries (passing all filters)
+    * `Count`: return the number of entries (that passed all filters)
+    * `Min,Max,Mean`: 
     * `get<T>("branch")`: return a `list<T>` of values of "branch"
-    * `fillhist("branch")`: return a TH1F filled with the values of "branch"
-    * `foreach(<function>, {"branch1", "branch2"})`: apply `function` to "branch1" and "branch2" 
+    * `Histo("branch")`: return a TH1 filled with the values of "branch"
+    * `Foreach(<function>, {"branch1", "branch2"})`: apply `function` to "branch1" and "branch2", once per entry
 
 See [below](#example-code) for some examples.
 
@@ -52,6 +54,7 @@ root -b example.cpp
 
 ## Perks
 * lazy evaluation: filters are only applied when an action is performed. This allows for parallelisation and other optimisations to be performed
+* support for functional *graphs* as opposed to chains: the state of the chain can be stored and reused at any point. Smart optimisations are performed in order to only loop and execute actions in bulk, as lazily as possible
 * a default set of branches can be specified when constructing a `TDataFrame`. It will be used as fallback when a set specific to the filter/action is not specified
 * transparent parallelisation of loops over trees becomes possible
 * does not require any change to ROOT
