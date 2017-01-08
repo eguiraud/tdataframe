@@ -1,7 +1,7 @@
 /// \file
 /// \ingroup tutorial_tdataframe
 /// \notebook -nodraw
-/// This tutorial illustrates the basic features of the TDataFrame class, 
+/// This tutorial illustrates the basic features of the TDataFrame class,
 /// a utility which allows to interact with data stored in TTrees following
 /// a functional-chain like approach.
 ///
@@ -21,7 +21,7 @@
 
 #include "TDataFrame.hxx"
 
-// A simple helper function to fill a test tree: this makes the example 
+// A simple helper function to fill a test tree: this makes the example
 // stand-alone.
 void fill_tree(const char* filename, const char* treeName) {
    TFile f(filename,"RECREATE");
@@ -47,7 +47,7 @@ int tdf001_introduction() {
    auto treeName = "myTree";
    fill_tree(fileName,treeName);
 
-   // We read the tree from the file and create a TDataFrame, a class that 
+   // We read the tree from the file and create a TDataFrame, a class that
    // allows us to interact with the data contained in the tree.
    // We select a default column, a *branch* to adopt ROOT jargon, which will
    // be looked at if none is specified by the user when dealing with filters
@@ -55,7 +55,7 @@ int tdf001_introduction() {
    TFile f(fileName);
    TDataFrame d(treeName, &f, {"b1"});
 
-   // ## Operations on the dataframe 
+   // ## Operations on the dataframe
    // We now review some *actions* which can be performed on the data frame.
    // All actions but ForEach return a TActionResultPtr<T>. The series of
    // operations on the data frame is not executed until one of those pointers
@@ -78,18 +78,18 @@ int tdf001_introduction() {
    // ### `Min`, `Max` and `Mean` actions
    // These actions allow to retrieve statistical information about the entries
    // passing the cuts, if any.
-   auto& b1b2_cut = d.Filter(cutb1b2, {"b2","b1"});
+   auto b1b2_cut = d.Filter(cutb1b2, {"b2","b1"});
    auto minVal = b1b2_cut.Min();
    auto maxVal = b1b2_cut.Max();
    auto meanVal = b1b2_cut.Mean("b2"); // <- Here the column is not the default one.
-   std::cout << "The mean is always included between the min and the max: " 
+   std::cout << "The mean is always included between the min and the max: "
              << *minVal << " <= " << *meanVal << " <= " << *maxVal << std::endl;
 
    // ### `Get` action
-   // The `Get` action allows to retrieve all values of the variable stored in a 
+   // The `Get` action allows to retrieve all values of the variable stored in a
    // particular column that passed filters we specified. The values are stored
    // in a list by default, but other collections can be chosen.
-   auto& b1_cut = d.Filter(cutb1);
+   auto b1_cut = d.Filter(cutb1);
    auto b1List = b1_cut.Get<double>();
    auto b1Vec = b1_cut.Get<double, std::vector<double>>();
 
@@ -101,7 +101,7 @@ int tdf001_introduction() {
    std::cout << "The type of b1Vec is" << b1VecCl->GetName() << std::endl;
 
    // ### `Histo` action
-   // The `Histo` action allows to fill an histogram. It returns a TH1F filled 
+   // The `Histo` action allows to fill an histogram. It returns a TH1F filled
    // with values of the column that passed the filters. For the most common
    // types, the type of the values stored in the column is automatically
    // guessed.
@@ -109,8 +109,8 @@ int tdf001_introduction() {
    std::cout << "Filled h " << hist->GetEntries() << " times, mean: " << hist->GetMean() << std::endl;
 
    // ### `Foreach` action
-   // The most generic action of all: an operation is applied to all entries. 
-   // In this case we fill a histogram. In some sense this is a violation of a 
+   // The most generic action of all: an operation is applied to all entries.
+   // In this case we fill a histogram. In some sense this is a violation of a
    // purely functional paradigm - C++ allows to do that.
    TH1F h("h", "h", 12, -1, 11);
    d.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
@@ -126,9 +126,9 @@ int tdf001_introduction() {
    // or again to clearly separate filters and actions without the need of
    // writing the entire pipeline on one line. This can be easily achieved.
    // We'll show this re-working the `Count` example:
-   auto& cutb1_result = d.Filter(cutb1);
-   auto& cutb1b2_result = d.Filter(cutb1b2, {"b2","b1"});
-   auto& cutb1_cutb1b2_result = cutb1_result.Filter(cutb1b2, {"b2","b1"});
+   auto cutb1_result = d.Filter(cutb1);
+   auto cutb1b2_result = d.Filter(cutb1b2, {"b2","b1"});
+   auto cutb1_cutb1b2_result = cutb1_result.Filter(cutb1b2, {"b2","b1"});
    // Now we want to count:
    auto evts_cutb1_result = cutb1_result.Count();
    auto evts_cutb1b2_result = cutb1b2_result.Count();
