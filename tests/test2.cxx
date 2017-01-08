@@ -214,6 +214,15 @@ int main() {
       std::cout << v << std::endl;
    }
 
+   // TEST 11: Re-hang action to TDataFrameProxy after running
+   TDataFrame d10(treeName, &f, {"tracks"});
+   auto d10f = d10.Filter([](FourVectors const & tracks) { return tracks.size() > 2; });
+   auto c10 = d10f.Count();
+   std::cout << "Count for the first run is " << *c10 << std::endl;
+   auto d10f_2 = d10f.Filter([](FourVectors const & tracks) { return tracks.size() < 5; });
+   auto c10_2 = d10f_2.Count();
+   std::cout << "Count for the second run after adding a filter is " << *c10_2 << std::endl;
+   std::cout << "Count for the first run was " << *c10 << std::endl;
 
    return 0;
 }

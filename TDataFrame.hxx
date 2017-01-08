@@ -764,10 +764,8 @@ public:
          for(auto& actionPtr : fBookedActions)
             actionPtr->Run(r.GetCurrentEntry());
 
-      // forget everything
+      // forget actions and "detach" the action result pointers marking them ready and forget them too
       fBookedActions.clear();
-      fBookedFilters.clear();
-      fBookedBranches.clear();
       for (auto aptr : fActionResultsPtrs) {
          aptr->SetReady();
       }
