@@ -124,6 +124,8 @@ void h1analysisDataFrame() {
                        h2.Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
                     {"dm_d", "rpd0_t", "ptd0_d"});
 
+   dataFrame.Run();
+
    Fit(hdmd, h2);
    Plot(hdmd, h2);
 }
