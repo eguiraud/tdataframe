@@ -525,6 +525,7 @@ private:
       auto tree = (TTree*) df.GetDirectory()->Get(df.GetTreeName().c_str());
       auto branch = tree->GetBranch(theBranchName.c_str());
       if(!branch) {
+         // temporary branch
          const auto& type_id = df.GetBookedBranch(theBranchName).GetTypeId();
          if (type_id == typeid(char)) { return SimpleAction<char, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
          else if (type_id == typeid(int)) { return SimpleAction<int, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
@@ -533,6 +534,7 @@ private:
          else if (type_id == typeid(std::vector<double>)) { return SimpleAction<std::vector<double>, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
          else if (type_id == typeid(std::vector<float>)) { return SimpleAction<std::vector<float>, ART, AT, TT>::BuildAndBook(this, theBranchName, r); }
       }
+      // real branch
       auto branchEl = dynamic_cast<TBranchElement*>(branch);
       if (!branchEl) { // This is a fundamental type
          auto title = branch->GetTitle();
