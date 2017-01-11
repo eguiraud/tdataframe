@@ -641,7 +641,8 @@ private:
       } else {
          std::string typeName = branchEl->GetTypeName();
          if (typeName == "vector<double>") { return SimpleAction<std::vector<double>, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
-         else if (typeName == "vector<float>") { return SimpleAction<std::vector<int>, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (typeName == "vector<float>") { return SimpleAction<std::vector<float>, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
+         else if (typeName == "vector<int>") { return SimpleAction<std::vector<int>, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots); }
       }
       return SimpleAction<BranchType, ART, AT, TT>::BuildAndBook(this, theBranchName, r, nSlots);
    }
