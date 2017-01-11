@@ -1,4 +1,4 @@
-TESTS:=tdf001_introduction tdf002_dataModel test2
+TESTS:=tdf001_introduction tdf002_dataModel test2 regression_multipletriggerrun
 
 all: $(TESTS)
 

@@ -11,7 +11,7 @@ fi
 popd > /dev/null
 
 echo "checking executables..."
-FILES=(test2 tdf001_introduction tdf002_dataModel)
+FILES=(test2 tdf001_introduction tdf002_dataModel regression_multipletriggerrun)
 RETCODE=0
 for F in ${FILES[@]}; do
    ../tests/$F | diff $F.out - > /dev/null
