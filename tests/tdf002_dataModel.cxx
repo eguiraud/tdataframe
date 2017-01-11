@@ -84,7 +84,7 @@ int tdf002_dataModel() {
    auto nentries = d.Filter(n_cut, {"tracks"})
                    .Count();
 
-   std::cout << *nentries.get() << " passed all filters" << std::endl;
+   std::cout << *nentries.Get() << " passed all filters" << std::endl;
 
    // Another possibility consists in creating a new column containing the
    // quantity we are interested in.

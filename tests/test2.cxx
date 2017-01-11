@@ -142,7 +142,7 @@ int main() {
    auto r6 = d6.AddBranch("iseven", [](int b2) { return b2 % 2 == 0; }, {"b2"})
                .Filter([](bool iseven) { return iseven; }, {"iseven"})
                .Count();
-   auto c6v = *r6.get();
+   auto c6v = *r6.Get();
    std::cout << c6v << std::endl;
    CheckRes(c6v, 10U, "AddBranch");
 
@@ -156,7 +156,7 @@ int main() {
                     return sum; });
    auto c7 = dd7.Count();
    auto h7 = dd7.Histo("ptsum");
-   auto c7v = *c7.get();
+   auto c7v = *c7.Get();
    CheckRes(c7v, 10U, "AddBranch complicated");
    std::cout << "AddBranch Histo entries: " << h7->GetEntries() << std::endl;
    std::cout << "AddBranch Histo mean: " << h7->GetMean() << std::endl;
