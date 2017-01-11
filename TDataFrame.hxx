@@ -382,7 +382,6 @@ namespace Operations {
       ~MaxOperation() {
          *fResultMax = std::numeric_limits<double>::min();
          for(auto& m : fMaxs) {
-            std::cout << m << std::endl;
             *fResultMax = std::max(m, *fResultMax);
          }
       }
@@ -854,19 +853,14 @@ public:
                   slotMap[thisThreadID] = slot;
                   ++globalSlotIndex;
                }
-               std::cout << "slot: " << slot << std::endl;
             }
 
-            std::cout << "slot " << slot << " building reader values" << std::endl;
-            std::cout << "slot " << slot << " TTreeReader address " << &r << std::endl;
             BuildAllReaderValues(r, slot); // TODO: if TTreeProcessor reuses the same TTreeReader object there is no need to re-build the TTreeReaderValues
 
             // recursive call to check filters and conditionally execute actions
-            std::cout << "slot " << slot << " looping" << std::endl;
             while(r.Next())
                for(auto& actionPtr : fBookedActions)
                   actionPtr->Run(slot, r.GetCurrentEntry());
-            std::cout << "slot " << slot << " done looping" << std::endl;
          });
       } else {
 #endif // R__USE_IMT
@@ -885,7 +879,6 @@ public:
       }
 #endif // R__USE_IMT
 
-      std::cout << "forgetting everything" << std::endl;
       // forget everything
       fBookedActions.clear();
       fBookedFilters.clear();
