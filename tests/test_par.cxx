@@ -27,7 +27,7 @@ int main() {
    FillTree(fileName, treeName);
    TFile f(fileName);
 
-   TDataFrame d(treeName, &f, {"i"});
+   ROOT::TDataFrame d(treeName, &f, {"i"});
    auto max = d.Filter([](int i) { return i % 2 == 1; }).Max();
    auto min = d.Min();
    auto mean = d.Mean();

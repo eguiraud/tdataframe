@@ -53,13 +53,13 @@ int tdf001_introduction() {
    // be looked at if none is specified by the user when dealing with filters
    //and actions.
    TFile f(fileName);
-   TDataFrame d(treeName, &f, {"b1"});
+   ROOT::TDataFrame d(treeName, &f, {"b1"});
 
    // ## Operations on the dataframe 
    // We now review some *actions* which can be performed on the data frame.
    // All actions but ForEach return a TActionResultPtr<T>. The series of
    // operations on the data frame is not executed until one of those pointers
-   // is accessed or the TDataFrame::Run method is invoked.
+   // is accessed. If the Foreach action is invoked, the execution is immediate.
    // But first of all, let us we define now our cut-flow with two lambda
    // functions. We can use free functions too.
    auto cutb1 = [](double b1) { return b1 < 5.; };
@@ -78,7 +78,7 @@ int tdf001_introduction() {
    // ### `Min`, `Max` and `Mean` actions
    // These actions allow to retrieve statistical information about the entries
    // passing the cuts, if any.
-   auto& b1b2_cut = d.Filter(cutb1b2, {"b2","b1"});
+   auto b1b2_cut = d.Filter(cutb1b2, {"b2","b1"});
    auto minVal = b1b2_cut.Min();
    auto maxVal = b1b2_cut.Max();
    auto meanVal = b1b2_cut.Mean("b2"); // <- Here the column is not the default one.
@@ -89,7 +89,7 @@ int tdf001_introduction() {
    // The `Get` action allows to retrieve all values of the variable stored in a 
    // particular column that passed filters we specified. The values are stored
    // in a list by default, but other collections can be chosen.
-   auto& b1_cut = d.Filter(cutb1);
+   auto b1_cut = d.Filter(cutb1);
    auto b1List = b1_cut.Get<double>();
    auto b1Vec = b1_cut.Get<double, std::vector<double>>();
 
@@ -115,7 +115,6 @@ int tdf001_introduction() {
    TH1F h("h", "h", 12, -1, 11);
    d.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
     .Foreach([&h](double b1) { h.Fill(b1); });
-   d.Run();
 
    std::cout << "Filled h with " << h.GetEntries() << " entries" << std::endl;
 
@@ -126,9 +125,9 @@ int tdf001_introduction() {
    // or again to clearly separate filters and actions without the need of
    // writing the entire pipeline on one line. This can be easily achieved.
    // We'll show this re-working the `Count` example:
-   auto& cutb1_result = d.Filter(cutb1);
-   auto& cutb1b2_result = d.Filter(cutb1b2, {"b2","b1"});
-   auto& cutb1_cutb1b2_result = cutb1_result.Filter(cutb1b2, {"b2","b1"});
+   auto cutb1_result = d.Filter(cutb1);
+   auto cutb1b2_result = d.Filter(cutb1b2, {"b2","b1"});
+   auto cutb1_cutb1b2_result = cutb1_result.Filter(cutb1b2, {"b2","b1"});
    // Now we want to count:
    auto evts_cutb1_result = cutb1_result.Count();
    auto evts_cutb1b2_result = cutb1b2_result.Count();
