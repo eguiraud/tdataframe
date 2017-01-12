@@ -438,7 +438,7 @@ public:
       const BranchList &defBl = fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
       const BranchList &actualBl = Internal::PickBranchList(f, bl, defBl);
       using DFF_t = Details::TDataFrameFilter<F, Proxied>;
-      std::shared_ptr<DFF_t> FilterPtr(new DFF_t(f, actualBl, fProxiedPtr));
+      auto FilterPtr = std::make_shared<DFF_t> (f, actualBl, fProxiedPtr);
       TDataFrameInterface<DFF_t> tdf_f(FilterPtr);
       Book(FilterPtr);
       return tdf_f;
@@ -451,7 +451,7 @@ public:
       const BranchList &defBl = fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
       const BranchList &actualBl = Internal::PickBranchList(expression, bl, defBl);
       using DFB_t = Details::TDataFrameBranch<F, Proxied>;
-      auto BranchPtr = std::shared_ptr<DFB_t>(new DFB_t(name, expression, actualBl, fProxiedPtr));
+      auto BranchPtr = std::make_shared<DFB_t>(name, expression, actualBl, fProxiedPtr);
       TDataFrameInterface<DFB_t> tdf_b(BranchPtr);
       Book(BranchPtr);
       return tdf_b;
@@ -468,7 +468,7 @@ public:
       using RetType_t = typename IU::TFunctionTraits<decltype(f)>::RetType_t;
       auto fWithSlot = IU::AddSlotParameter<RetType_t>(f, ArgTypes_t());
       using DFA_t  = Internal::TDataFrameAction<decltype(fWithSlot), Proxied>;
-      Book(std::shared_ptr<DFA_t>(new DFA_t(fWithSlot, actualBl, fProxiedPtr)));
+      Book(std::make_shared<DFA_t>(fWithSlot, actualBl, fProxiedPtr));
       fProxiedPtr->GetDataFrame().lock()->Run();
    }
 
@@ -479,7 +479,7 @@ public:
       auto countAction = [cPtr](unsigned int slot /*TODO use it*/) -> void { (*cPtr)++; };
       BranchList bl = {};
       using DFA_t = Internal::TDataFrameAction<decltype(countAction), Proxied>;
-      Book(std::shared_ptr<DFA_t>(new DFA_t(countAction, bl, fProxiedPtr)));
+      Book(std::make_shared<DFA_t>(countAction, bl, fProxiedPtr));
       return c;
    }
 
@@ -493,7 +493,7 @@ public:
       auto getAction = [valuesPtr](unsigned int slot /*TODO use it*/, const T &v) { valuesPtr->emplace_back(v); };
       BranchList bl = {theBranchName};
       using DFA_t = Internal::TDataFrameAction<decltype(getAction), Proxied>;
-      Book(std::shared_ptr<DFA_t>(new DFA_t(getAction, bl, fProxiedPtr)));
+      Book(std::make_shared<DFA_t>(getAction, bl, fProxiedPtr));
       return values;
    }
 
@@ -582,7 +582,7 @@ private:
          auto fillLambda = [fillOp](unsigned int slot, const BranchType &v) mutable { fillOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(fillLambda), Proxied>;
-         thisFrame->Book(std::shared_ptr<DFA_t>(new DFA_t(fillLambda, bl, thisFrame->fProxiedPtr)));
+         thisFrame->Book(std::make_shared<DFA_t>(fillLambda, bl, thisFrame->fProxiedPtr));
          return TActionResultPtr<TH1F>(h, thisFrame->GetDataFrameChecked());
       }
    };
@@ -596,7 +596,7 @@ private:
          auto minOpLambda = [minOp](unsigned int slot, const BranchType &v) mutable { minOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(minOpLambda), Proxied>;
-         thisFrame->Book(std::shared_ptr<DFA_t>(new DFA_t(minOpLambda, bl, thisFrame->fProxiedPtr)));
+         thisFrame->Book(std::make_shared<DFA_t>(minOpLambda, bl, thisFrame->fProxiedPtr));
          return TActionResultPtr<ActionResultType>(minV, thisFrame->GetDataFrameChecked());
       }
    };
@@ -610,7 +610,7 @@ private:
          auto maxOpLambda = [maxOp](unsigned int slot, const BranchType &v) mutable { maxOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(maxOpLambda), Proxied>;
-         thisFrame->Book(std::shared_ptr<DFA_t>(new DFA_t(maxOpLambda, bl, thisFrame->fProxiedPtr)));
+         thisFrame->Book(std::make_shared<DFA_t>(maxOpLambda, bl, thisFrame->fProxiedPtr));
          return TActionResultPtr<ActionResultType>(maxV, thisFrame->GetDataFrameChecked());
       }
    };
@@ -624,7 +624,7 @@ private:
          auto meanOpLambda = [meanOp](unsigned int slot, const BranchType &v) mutable { meanOp->Cumulate(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(meanOpLambda), Proxied>;
-         thisFrame->Book(std::shared_ptr<DFA_t>(new DFA_t(meanOpLambda, bl, thisFrame->fProxiedPtr)));
+         thisFrame->Book(std::make_shared<DFA_t>(meanOpLambda, bl, thisFrame->fProxiedPtr));
          return TActionResultPtr<ActionResultType>(meanV, thisFrame->GetDataFrameChecked());
       }
    };
@@ -778,8 +778,8 @@ public:
                                              Internal::TDFTraitsUtils::TSeq<S...>,
                                              unsigned int slot, int entry)
    {
-      auto valuePtr = std::shared_ptr<RetType_t>(new RetType_t(fExpression(
-         Internal::GetBranchValue<S, BranchTypes>(fReaderValues[slot][S], slot, entry, fBranches[S], fFirstData)...)));
+      auto valuePtr = std::make_shared<RetType_t>(fExpression(
+         Internal::GetBranchValue<S, BranchTypes>(fReaderValues[slot][S], slot, entry, fBranches[S], fFirstData)...));
       return valuePtr;
    }
 
@@ -1009,14 +1009,14 @@ namespace ROOT {
 template <typename T>
 TDataFrameInterface<T>::TDataFrameInterface(const std::string &treeName, TDirectory *dirPtr,
                                             const BranchList &defaultBranches)
-   : fProxiedPtr(new ROOT::Details::TDataFrameImpl(treeName, dirPtr, defaultBranches))
+   : fProxiedPtr(std::make_shared<Details::TDataFrameImpl>(treeName, dirPtr, defaultBranches))
 {
    fProxiedPtr->fFirstData = fProxiedPtr->shared_from_this();
 }
 
 template <typename T>
 TDataFrameInterface<T>::TDataFrameInterface(TTree &tree, const BranchList &defaultBranches)
-   : fProxiedPtr(new ROOT::Details::TDataFrameImpl(tree, defaultBranches))
+   : fProxiedPtr(std::make_shared<Details::TDataFrameImpl>(tree, defaultBranches))
 {
    fProxiedPtr->fFirstData = fProxiedPtr->shared_from_this();
 }
