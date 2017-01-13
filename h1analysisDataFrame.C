@@ -10,8 +10,8 @@
 #include "TStyle.h"
 
 //_____________________________________________________________________
-auto& Select(TDataFrame& dataFrame) {
-   return dataFrame
+auto Select = [](TDataFrame& dataFrame) {
+   auto& ret = dataFrame
    .Filter([](float md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
            {"md0_d"})
    .Filter([](float ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
@@ -31,7 +31,9 @@ auto& Select(TDataFrame& dataFrame) {
    .Filter([](int ipis, const ARRAY<float>& nlhpi) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "nlhpi"})
 #endif
    .Filter([](int njets) { return njets >= 1; }, {"njets"});
-}
+
+   return std::ref(ret);
+};
 
 const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
 
@@ -118,12 +120,12 @@ void h1analysisDataFrame() {
    chain.Add("http://root.cern.ch/files/h1/dstarp2.root");
 
    TDataFrame dataFrame(chain);
-   auto& selected = Select(dataFrame);
+   auto selected = Select(dataFrame);
 
    TH1F hdmd("hdmd", "Dm_d",40,0.13,0.17);
    TH2F h2("h2","ptD0 vs Dm_d",30,0.135,0.165,30,-3,6);
-   selected.Foreach([&hdmd](float dm_d) { hdmd.Fill(dm_d); }, {"dm_d"});
-   selected.Foreach([&h2](float dm_d, float rpd0_t, float ptd0_d) {
+   selected.get().Foreach([&hdmd](float dm_d) { hdmd.Fill(dm_d); }, {"dm_d"});
+   selected.get().Foreach([&h2](float dm_d, float rpd0_t, float ptd0_d) {
                        h2.Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
                     {"dm_d", "rpd0_t", "ptd0_d"});
 
