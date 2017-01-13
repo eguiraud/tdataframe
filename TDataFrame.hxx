@@ -335,17 +335,32 @@ public:
 
 class FillOperation {
    static constexpr unsigned int fgTotalBufSize = 2097152;
-   using Buf_t = double;
-   std::vector<std::vector<Buf_t>> fBuffers;
+   using BufEl_t = double;
+   using Buf_t = std::vector<BufEl_t>;
+
+   std::vector<Buf_t> fBuffers;
    unsigned int fBufSize;
    std::shared_ptr<TH1F> fResultHist;
+   Buf_t fMin;
+   Buf_t fMax;
+
+   template <typename T>
+   void UpdateMinMax(unsigned int slot, T v) {
+      auto& thisMin = fMin[slot];
+      auto& thisMax = fMax[slot];
+      thisMin = std::min(thisMin, (BufEl_t)v);
+      thisMax = std::max(thisMax, (BufEl_t)v);
+   }
 
 public:
-   FillOperation(std::shared_ptr<TH1F> h, unsigned int nSlots) : fResultHist(h), fBufSize (fgTotalBufSize / nSlots)
+   FillOperation(std::shared_ptr<TH1F> h, unsigned int nSlots) : fResultHist(h),
+                                                                 fBufSize (fgTotalBufSize / nSlots),
+                                                                 fMin(nSlots, std::numeric_limits<BufEl_t>::max()),
+                                                                 fMax(nSlots, std::numeric_limits<BufEl_t>::min())
    {
       fBuffers.reserve(nSlots);
       for (unsigned int i=0; i<nSlots; ++i) {
-         std::vector<Buf_t> v;
+         Buf_t v;
          v.reserve(fBufSize);
          fBuffers.emplace_back(v);
       }
@@ -354,6 +369,7 @@ public:
    template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(T v, unsigned int slot)
    {
+      UpdateMinMax(slot, v);
       fBuffers[slot].emplace_back(v);
    }
 
@@ -361,31 +377,29 @@ public:
    void Exec(const T &vs, unsigned int slot)
    {
       auto& thisBuf = fBuffers[slot];
-      for (auto& v : vs) thisBuf.emplace_back(v); // TODO: Can be optimised in case T == Buf_t
+      for (auto& v : vs) {
+         UpdateMinMax(slot, v);
+         thisBuf.emplace_back(v); // TODO: Can be optimised in case T == BufEl_t
+      }
    }
 
    ~FillOperation()
    {
-      if (fResultHist->CanExtendAllAxes()) {
-         double min = std::numeric_limits<double>::max();
-         double max = std::numeric_limits<double>::min();
-         bool minmaxIsSet = false;
-         for (auto& buf : fBuffers) {
-            if (buf.empty()) continue;
-            minmaxIsSet = true;
-            auto minmax = std::minmax_element(buf.begin(), buf.end());
-            min = std::min(min, *minmax.first);
-            max = std::max(max, *minmax.second);
-         }
-         if (minmaxIsSet) {
-            auto xaxis = fResultHist->GetXaxis();
-            fResultHist->ExtendAxis(min, xaxis);
-            fResultHist->ExtendAxis(max, xaxis);
-         }
 
+      BufEl_t globalMin = *std::min_element(fMin.begin(), fMin.end());
+      BufEl_t globalMax = *std::max_element(fMax.begin(), fMax.end());
+
+      if (fResultHist->CanExtendAllAxes() &&
+          globalMin != std::numeric_limits<BufEl_t>::max() &&
+          globalMax != std::numeric_limits<BufEl_t>::min()) {
+         auto xaxis = fResultHist->GetXaxis();
+         fResultHist->ExtendAxis(globalMin, xaxis);
+         fResultHist->ExtendAxis(globalMax, xaxis);
       }
+
       for (auto& buf : fBuffers) {
-         fResultHist->FillN(buf.size(), buf.data(), nullptr);
+         Buf_t w(buf.size(),1); // A bug in FillN?
+         fResultHist->FillN(buf.size(), buf.data(),  w.data());
       }
    }
 };
