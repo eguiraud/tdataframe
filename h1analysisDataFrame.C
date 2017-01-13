@@ -122,15 +122,15 @@ void h1analysisDataFrame() {
    TDataFrame dataFrame(chain);
    auto selected = Select(dataFrame);
 
-   TH1F hdmd("hdmd", "Dm_d",40,0.13,0.17);
-   TH2F h2("h2","ptD0 vs Dm_d",30,0.135,0.165,30,-3,6);
-   selected.get().Foreach([&hdmd](float dm_d) { hdmd.Fill(dm_d); }, {"dm_d"});
-   selected.get().Foreach([&h2](float dm_d, float rpd0_t, float ptd0_d) {
-                       h2.Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
+   TH1F* hdmd = new TH1F("hdmd", "Dm_d",40,0.13,0.17);
+   TH2F* h2 = new TH2F("h2","ptD0 vs Dm_d",30,0.135,0.165,30,-3,6);
+   selected.get().Foreach([hdmd](float dm_d) { hdmd->Fill(dm_d); }, {"dm_d"});
+   selected.get().Foreach([h2](float dm_d, float rpd0_t, float ptd0_d) {
+                       h2->Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
                     {"dm_d", "rpd0_t", "ptd0_d"});
 
    dataFrame.Run();
 
-   Fit(hdmd, h2);
-   Plot(hdmd, h2);
+   Fit(*hdmd, *h2);
+   Plot(*hdmd, *h2);
 }
