@@ -177,6 +177,15 @@ class TDataFrameImpl;
 }
 
 namespace Internal {
+
+unsigned int GetNSlots() {
+   unsigned int nSlots = 1;
+#ifdef R__USE_IMT
+   if (ROOT::IsImplicitMTEnabled()) nSlots = ROOT::GetImplicitMTPoolSize();
+#endif // R__USE_IMT
+   return nSlots;
+}
+
 using TVBPtr_t = std::shared_ptr<TTreeReaderValueBase>;
 using TVBVec_t = std::vector<TVBPtr_t>;
 
@@ -301,34 +310,165 @@ public:
 
 namespace Operations {
 using namespace Internal::TDFTraitsUtils;
-class FillOperation {
-   TH1F *fResultHist;
-   std::vector<TH1F> fHists;
+using Count_t = unsigned long;
+
+class CountOperation {
+   unsigned int *fResultCount;
+   std::vector<Count_t> fCounts;
 
 public:
-   FillOperation(TH1F *h, unsigned int nSlots) : fResultHist(h), fHists(nSlots) {}
-   template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
-   void Exec(T v, unsigned int)
+   CountOperation(unsigned int *resultCount, unsigned int nSlots) : fResultCount(resultCount), fCounts(nSlots, 0) {}
+
+   void Exec(unsigned int slot)
    {
-      fResultHist->Fill(v);
+      fCounts[slot]++;
+   }
+
+   ~CountOperation()
+   {
+      *fResultCount = 0;
+      for (auto &c : fCounts) {
+         *fResultCount += c;
+      }
+   }
+};
+
+class FillOperation {
+   static constexpr unsigned int fgTotalBufSize = 2097152;
+   using Buf_t = double;
+   std::vector<std::vector<Buf_t>> fBuffers;
+   unsigned int fBufSize;
+   std::shared_ptr<TH1F> fResultHist;
+
+public:
+   FillOperation(std::shared_ptr<TH1F> h, unsigned int nSlots) : fResultHist(h), fBufSize (fgTotalBufSize / nSlots)
+   {
+      fBuffers.reserve(nSlots);
+      for (unsigned int i=0; i<nSlots; ++i) {
+         std::vector<Buf_t> v;
+         v.reserve(fBufSize);
+         fBuffers.emplace_back(v);
+      }
+   }
+
+   template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
+   void Exec(T v, unsigned int slot)
+   {
+      fBuffers[slot].emplace_back(v);
    }
 
    template <typename T, typename std::enable_if<TIsContainer<T>::fgValue, int>::type = 0>
-   void Exec(const T &vs, unsigned int)
+   void Exec(const T &vs, unsigned int slot)
    {
-      for (auto &&v : vs) fResultHist->Fill(v);
+      auto& thisBuf = fBuffers[slot];
+      for (auto& v : vs) thisBuf.emplace_back(v); // TODO: Can be optimised in case T == Buf_t
    }
 
    ~FillOperation()
    {
-      // FIXME merge fHists in fResultHist
-      // fHists[0].Copy(*fResultHist);
+      if (fResultHist->CanExtendAllAxes()) {
+         double min = std::numeric_limits<double>::max();
+         double max = std::numeric_limits<double>::min();
+         bool minmaxIsSet = false;
+         for (auto& buf : fBuffers) {
+            if (buf.empty()) continue;
+            minmaxIsSet = true;
+            auto minmax = std::minmax_element(buf.begin(), buf.end());
+            min = std::min(min, *minmax.first);
+            max = std::max(max, *minmax.second);
+         }
+         if (minmaxIsSet) {
+            auto xaxis = fResultHist->GetXaxis();
+            fResultHist->ExtendAxis(min, xaxis);
+            fResultHist->ExtendAxis(max, xaxis);
+         }
+
+      }
+      for (auto& buf : fBuffers) {
+         fResultHist->FillN(buf.size(), buf.data(), nullptr);
+      }
+   }
+};
+
+template<typename T, typename COLL>
+class GetOperation {
+   std::vector<std::shared_ptr<COLL>> fColls;
+public:
+   GetOperation(std::shared_ptr<COLL> resultColl, unsigned int nSlots)
+   {
+      fColls.emplace_back(resultColl);
+      for (unsigned int i = 1; i < nSlots; ++i)
+         fColls.emplace_back(std::make_shared<COLL>());
+   }
+
+   template <typename V, typename std::enable_if<!TIsContainer<V>::fgValue, int>::type = 0>
+   void Exec(V v, unsigned int slot)
+   {
+      fColls[slot]->emplace_back(v);
+   }
+
+   template <typename V, typename std::enable_if<TIsContainer<V>::fgValue, int>::type = 0>
+   void Exec(const V &vs, unsigned int slot)
+   {
+      auto thisColl = fColls[slot];
+      thisColl.insert(std::begin(thisColl), std::begin(vs), std::begin(vs));
+   }
+
+   ~GetOperation()
+   {
+      auto rColl = fColls[0];
+      for (unsigned int i = 1; i < fColls.size(); ++i) {
+         auto& coll = fColls[i];
+         for (T &v : *coll) {
+            rColl->emplace_back(v);
+         }
+      }
+   }
+};
+
+template<typename T>
+class GetOperation<T, std::vector<T>> {
+   std::vector<std::shared_ptr<std::vector<T>>> fColls;
+public:
+   GetOperation(std::shared_ptr<std::vector<T>> resultColl, unsigned int nSlots)
+   {
+      fColls.emplace_back(resultColl);
+      for (unsigned int i = 1; i < nSlots; ++i) {
+         auto v = std::make_shared<std::vector<T>>();
+         v->reserve(1024);
+         fColls.emplace_back(v);
+      }
+   }
+
+   template <typename V, typename std::enable_if<!TIsContainer<V>::fgValue, int>::type = 0>
+   void Exec(V v, unsigned int slot)
+   {
+      fColls[slot]->emplace_back(v);
+   }
+
+   template <typename V, typename std::enable_if<TIsContainer<V>::fgValue, int>::type = 0>
+   void Exec(const V &vs, unsigned int slot)
+   {
+      auto thisColl = fColls[slot];
+      thisColl->insert(std::begin(thisColl), std::begin(vs), std::begin(vs));
+   }
+
+   ~GetOperation()
+   {
+      unsigned int totSize = 0;
+      for (auto& coll : fColls) totSize += coll->size();
+      auto rColl = fColls[0];
+      rColl->reserve(totSize);
+      for (unsigned int i = 1; i < fColls.size(); ++i) {
+         auto& coll = fColls[i];
+         rColl->insert(rColl->end(), coll->begin(), coll->end());
+      }
    }
 };
 
 class MinOperation {
    Double_t *fResultMin;
-   std::vector<Double_t> fMins;
+   std::vector<double> fMins;
 
 public:
    MinOperation(Double_t *minVPtr, unsigned int nSlots)
@@ -352,7 +492,7 @@ public:
 
 class MaxOperation {
    Double_t *fResultMax;
-   std::vector<Double_t> fMaxs;
+   std::vector<double> fMaxs;
 
 public:
    MaxOperation(Double_t *maxVPtr, unsigned int nSlots)
@@ -380,35 +520,38 @@ public:
 
 class MeanOperation {
    Double_t *fResultMean;
-   std::vector<Long_t> fCounts;
-   std::vector<Double_t> fMeans;
+   std::vector<Count_t> fCounts;
+   std::vector<double> fSums;
 
 public:
-   MeanOperation(Double_t *meanVPtr, unsigned int nSlots) : fResultMean(meanVPtr), fCounts(nSlots, 0), fMeans(nSlots, 0) {}
+   MeanOperation(Double_t *meanVPtr, unsigned int nSlots) : fResultMean(meanVPtr), fCounts(nSlots, 0), fSums(nSlots, 0) {}
    template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
-   void Cumulate(T v, unsigned int slot)
+   void Exec(T v, unsigned int slot)
    {
-      fMeans[slot] += v;
-      fCounts[slot] += 1;
+      fSums[slot] += v;
+      fCounts[slot] ++;
    }
 
    template <typename T, typename std::enable_if<TIsContainer<T>::fgValue, int>::type = 0>
-   void Cumulate(const T &vs, unsigned int slot)
+   void Exec(const T &vs, unsigned int slot)
    {
       for (auto &&v : vs) {
-         fMeans[slot] += v;
-         fCounts[slot] += 1;
+         fSums[slot] += v;
+         fCounts[slot]++;
       }
    }
 
    ~MeanOperation()
    {
-      Double_t sumOfMeans = 0;
-      for (unsigned int i = 0; i < fMeans.size(); ++i) sumOfMeans += fMeans[i] / fCounts[i];
-      *fResultMean    = sumOfMeans / fMeans.size();
+      double sumOfSums = 0;
+      for (auto &s : fSums) sumOfSums += s;
+      Count_t sumOfCounts = 0;
+      for (auto &c : fCounts) sumOfCounts += c;
+      *fResultMean = sumOfSums / sumOfCounts;
    }
 };
-}
+
+} // end of NS Operations
 
 enum class EActionType : short { kHisto1D, kMin, kMax, kMean };
 
@@ -474,26 +617,32 @@ public:
 
    TActionResultPtr<unsigned int> Count()
    {
-      TActionResultPtr<unsigned int> c(std::make_shared<unsigned int>(0), GetDataFrameChecked());
+      auto df = GetDataFrameChecked();
+      unsigned int nSlots = df.lock()->GetNSlots();
+      TActionResultPtr<unsigned int> c (std::make_shared<unsigned int>(0), df);
       auto cPtr = c.GetUnchecked();
-      auto countAction = [cPtr](unsigned int slot /*TODO use it*/) -> void { (*cPtr)++; };
+      auto cOp = std::make_shared<Internal::Operations::CountOperation>(cPtr, nSlots);
+      auto countAction = [cOp](unsigned int slot) mutable { cOp->Exec(slot); };
       BranchList bl = {};
       using DFA_t = Internal::TDataFrameAction<decltype(countAction), Proxied>;
-      Book(std::make_shared<DFA_t>(countAction, bl, fProxiedPtr));
+      Book(std::shared_ptr<DFA_t>(new DFA_t(countAction, bl, fProxiedPtr)));
       return c;
    }
 
    template <typename T, typename COLL = std::list<T>>
    TActionResultPtr<COLL> Get(const std::string &branchName = "")
    {
+      auto df = GetDataFrameChecked();
+      unsigned int nSlots = df.lock()->GetNSlots();
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "get the values of the branch");
-      TActionResultPtr<COLL> values(std::make_shared<COLL>(), GetDataFrameChecked());
-      auto valuesPtr = values.GetUnchecked();
-      auto getAction = [valuesPtr](unsigned int slot /*TODO use it*/, const T &v) { valuesPtr->emplace_back(v); };
+      auto valuesPtr = std::make_shared<COLL>();
+      TActionResultPtr<COLL> values(valuesPtr, df);
+      auto getOp = std::make_shared<Internal::Operations::GetOperation<T,COLL>>(valuesPtr, nSlots);
+      auto getAction = [getOp] (unsigned int slot , const T &v) mutable { getOp->Exec(v, slot); };
       BranchList bl = {theBranchName};
       using DFA_t = Internal::TDataFrameAction<decltype(getAction), Proxied>;
-      Book(std::make_shared<DFA_t>(getAction, bl, fProxiedPtr));
+      Book(std::shared_ptr<DFA_t>(new DFA_t(getAction, bl, fProxiedPtr)));
       return values;
    }
 
@@ -513,6 +662,9 @@ public:
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "fill the histogram");
       auto h = std::make_shared<TH1F>("", "", nBins, minVal, maxVal);
+      if (minVal == maxVal) {
+         h->SetCanExtend(TH1::kAllAxes);
+      }
       return CreateAction<T, Internal::EActionType::kHisto1D>(theBranchName, h);
    }
 
@@ -578,7 +730,8 @@ private:
       static TActionResultPtr<TH1F> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                  std::shared_ptr<TH1F> h, unsigned int nSlots)
       {
-         auto fillOp = std::make_shared<Internal::Operations::FillOperation>(h.get(), nSlots);
+         // Here we pass the shared_ptr and not the pointer
+         auto fillOp = std::make_shared<Internal::Operations::FillOperation>(h, nSlots);
          auto fillLambda = [fillOp](unsigned int slot, const BranchType &v) mutable { fillOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(fillLambda), Proxied>;
@@ -621,7 +774,7 @@ private:
                                                              std::shared_ptr<ActionResultType> meanV, unsigned int nSlots)
       {
          auto meanOp = std::make_shared<Internal::Operations::MeanOperation>(meanV.get(), nSlots);
-         auto meanOpLambda = [meanOp](unsigned int slot, const BranchType &v) mutable { meanOp->Cumulate(v, slot); };
+         auto meanOpLambda = [meanOp](unsigned int slot, const BranchType &v) mutable { meanOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(meanOpLambda), Proxied>;
          thisFrame->Book(std::make_shared<DFA_t>(meanOpLambda, bl, thisFrame->fProxiedPtr));
@@ -640,10 +793,7 @@ private:
       auto df = GetDataFrameChecked();
       auto tree = (TTree *)df.lock()->GetDirectory()->Get(df.lock()->GetTreeName().c_str());
       auto branch = tree->GetBranch(theBranchName.c_str());
-      unsigned int nSlots = 1;
-#ifdef R__USE_IMT
-      if (ROOT::IsImplicitMTEnabled()) nSlots = ROOT::GetImplicitMTPoolSize();
-#endif // R__USE_IMT
+      unsigned int nSlots = df.lock()->GetNSlots();
       if (!branch) {
          // temporary branch
          const auto &type_id = df.lock()->GetBookedBranch(theBranchName).GetTypeId();
@@ -867,15 +1017,15 @@ public:
    std::weak_ptr<TDataFrameImpl> fFirstData;
    std::vector<Internal::TVBVec_t> fReaderValues = {};
    std::vector<int> fLastCheckedEntry = {-1};
-   std::vector<bool> fLastResult = {true};
+   std::vector<int> fLastResult = {true}; // std::vector<bool> cannot be used in a MT context safely
 };
 
 class TDataFrameImpl : public std::enable_shared_from_this<TDataFrameImpl> {
 public:
    TDataFrameImpl(const std::string &treeName, TDirectory *dirPtr, const BranchList &defaultBranches = {})
-      : fTreeName(treeName), fDirPtr(dirPtr), fDefaultBranches(defaultBranches) { }
+      : fTreeName(treeName), fDirPtr(dirPtr), fDefaultBranches(defaultBranches), fNSlots(ROOT::Internal::GetNSlots()) { }
 
-   TDataFrameImpl(TTree &tree, const BranchList &defaultBranches = {}) : fTree(&tree), fDefaultBranches(defaultBranches)
+   TDataFrameImpl(TTree &tree, const BranchList &defaultBranches = {}) : fTree(&tree), fDefaultBranches(defaultBranches), fNSlots(ROOT::Internal::GetNSlots())
    { }
 
    TDataFrameImpl(const TDataFrameImpl &) = delete;
@@ -890,7 +1040,7 @@ public:
          ROOT::TSpinMutex     slotMutex;
          std::map<std::thread::id, unsigned int> slotMap;
          unsigned int globalSlotIndex = 0;
-         CreateSlots(ROOT::GetImplicitMTPoolSize());
+         CreateSlots(fNSlots);
          tp.Process([this, &slotMutex, &globalSlotIndex, &slotMap](TTreeReader &r) -> void {
             const auto thisThreadID = std::this_thread::get_id();
             unsigned int slot;
@@ -986,6 +1136,8 @@ public:
    // register a TActionResultPtr
    void RegisterActionResult(TActionResultPtrBase *ptr) { fActionResultsPtrs.emplace_back(ptr); }
 
+   unsigned int GetNSlots() {return fNSlots;}
+
    Internal::ActionBaseVec_t fBookedActions;
    Details::FilterBaseVec_t fBookedFilters;
    std::map<std::string, TmpBranchBasePtr_t> fBookedBranches;
@@ -998,6 +1150,7 @@ public:
    // and they must copy an empty list from the base TDataFrameImpl
    const BranchList fTmpBranches;
    std::weak_ptr<TDataFrameImpl> fFirstData;
+   unsigned int fNSlots;
 };
 
 } // end NS Details
