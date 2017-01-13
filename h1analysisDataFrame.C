@@ -16,17 +16,20 @@ auto& Select(TDataFrame& dataFrame) {
            {"md0_d"})
    .Filter([](float ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
    .Filter([](float etads_d) { return TMath::Abs(etads_d) < 1.5; }, {"etads_d"})
-   .Filter([](int ik, int ipi, const std::vector<int>& nhitrp) { return nhitrp[ik-1] * nhitrp[ipi-1] > 1; },
+#if 0
+   // Needs TTreeReaderArray support in TDataFrame
+   .Filter([](int ik, int ipi, const ARRAY<int>& nhitrp) { return nhitrp[ik-1] * nhitrp[ipi-1] > 1; },
            {"ik", "ipi", "nhitrp"})
-   .Filter([](int ik, const std::vector<float>& rstart, const std::vector<float>& rend) {
+   .Filter([](int ik, const ARRAY<float>& rstart, const ARRAY<float>& rend) {
       return rend[ik-1] - rstart[ik-1] > 22; },
            { "ik", "rstart", "rend"})
-   .Filter([](int ipi, const std::vector<float>& rstart, const std::vector<float>& rend) {
+   .Filter([](int ipi, const ARRAY<float>& rstart, const ARRAY<float>& rend) {
       return rend[ipi-1] - rstart[ipi-1] > 22; },
            {"ipi", "rstart", "rend"})
-   .Filter([](int ik, const std::vector<float>& nlhk) { return nlhk[ik-1] > 0.1; }, {"ik", "nlhk"})
-   .Filter([](int ipi, const std::vector<float>& nlhpi) { return nlhpi[ipi-1] > 0.1; }, {"ipi", "nlhpi"})
-   .Filter([](int ipis, const std::vector<float>& nlhpi) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "nlhpi"})
+   .Filter([](int ik, const ARRAY<float>& nlhk) { return nlhk[ik-1] > 0.1; }, {"ik", "nlhk"})
+   .Filter([](int ipi, const ARRAY<float>& nlhpi) { return nlhpi[ipi-1] > 0.1; }, {"ipi", "nlhpi"})
+   .Filter([](int ipis, const ARRAY<float>& nlhpi) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "nlhpi"})
+#endif
    .Filter([](int njets) { return njets >= 1; }, {"njets"});
 }
 
