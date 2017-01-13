@@ -61,13 +61,37 @@ Double_t fdm2(Double_t *xx, Double_t *par)
 }
 
 //_____________________________________________________________________
-void Fit(TH1& hdmd, TH2& h2) {
+void FitAndPlotHdmd(TH1& hdmd) {
+   //create the canvas for the h1analysis fit
+   gStyle->SetOptFit();
+   TCanvas *c1 = new TCanvas("c1","h1analysis analysis",10,10,800,600);
+   c1->SetBottomMargin(0.15);
+   hdmd.GetXaxis()->SetTitle("m_{K#pi#pi} - m_{K#pi}[GeV/c^{2}]");
+   hdmd.GetXaxis()->SetTitleOffset(1.4);
+
+   //fit histogram hdmd with function f5 using the loglikelihood option
    if (gROOT->GetListOfFunctions()->FindObject("f5"))
       delete gROOT->GetFunction("f5");
    TF1 *f5 = new TF1("f5",fdm5,0.139,0.17,5);
    f5->SetParameters(1000000, .25, 2000, .1454, .001);
-   //fit histogram hdmd with function f5 using the loglikelihood option
    hdmd.Fit("f5","lr");
+
+   // Have the number of entries on the first histogram (to cross check when running
+   // with entry lists)
+   TPaveStats *psdmd = (TPaveStats *)hdmd.GetListOfFunctions()->FindObject("stats");
+   if (psdmd)
+      psdmd->SetOptStat(1110);
+   c1->Modified();
+}
+
+//_____________________________________________________________________
+void FitAndPlotH2(TH2& h2) {
+   //create the canvas for tau d0
+   gStyle->SetOptFit(0);
+   gStyle->SetOptStat(1100);
+   TCanvas *c2 = new TCanvas("c2","tauD0",100,100,800,600);
+   c2->SetGrid();
+   c2->SetBottomMargin(0.15);
 
    // Project slices of 2-d histogram h2 along X , then fit each slice
    // with function f2 and make a histogram for each fit parameter
@@ -78,23 +102,6 @@ void Fit(TH1& hdmd, TH2& h2) {
    TF1 *f2 = new TF1("f2",fdm2,0.139,0.17,2);
    f2->SetParameters(10000, 10);
    h2.FitSlicesX(f2,0,-1,1,"qln");
-}
-
-//_____________________________________________________________________
-void Plot(TH1& hdmd, TH2& /*h2*/) {
-   //create the canvas for the h1analysis fit
-   gStyle->SetOptFit();
-   TCanvas *c1 = new TCanvas("c1","h1analysis analysis",10,10,800,600);
-   c1->SetBottomMargin(0.15);
-   hdmd.GetXaxis()->SetTitle("m_{K#pi#pi} - m_{K#pi}[GeV/c^{2}]");
-   hdmd.GetXaxis()->SetTitleOffset(1.4);
-
-   //create the canvas for tau d0
-   gStyle->SetOptFit(0);
-   gStyle->SetOptStat(1100);
-   TCanvas *c2 = new TCanvas("c2","tauD0",100,100,800,600);
-   c2->SetGrid();
-   c2->SetBottomMargin(0.15);
 
    TH1D *h2_1 = (TH1D*)gDirectory->Get("h2_1");
    h2_1->GetXaxis()->SetTitle("#tau[ps]");
@@ -103,12 +110,6 @@ void Plot(TH1& hdmd, TH2& /*h2*/) {
    c2->Update();
    TLine *line = new TLine(0,0,0,c2->GetUymax());
    line->Draw();
-
-   // Have the number of entries on the first histogram (to cross check when running
-   // with entry lists)
-   TPaveStats *psdmd = (TPaveStats *)hdmd.GetListOfFunctions()->FindObject("stats");
-   psdmd->SetOptStat(1110);
-   c1->Modified();
 }
 
 //_____________________________________________________________________
@@ -131,6 +132,6 @@ void h1analysisDataFrame() {
 
    dataFrame.Run();
 
-   Fit(*hdmd, *h2);
-   Plot(*hdmd, *h2);
+   FitAndPlotHdmd(*hdmd);
+   FitAndPlotH2(*h2);
 }
