@@ -11,7 +11,7 @@ fi
 popd > /dev/null
 
 echo "checking executables..."
-FILES=(test2 tdf001_introduction tdf002_dataModel regression_multipletriggerrun)
+FILES=(test2 testIMT tdf001_introduction tdf002_dataModel regression_multipletriggerrun)
 RETCODE=0
 for F in ${FILES[@]}; do
    ../tests/$F | diff $F.out -
@@ -43,6 +43,6 @@ if (( $RETCODE == 0 )); then
    echo "everything fine!"
 fi
 
-rm -f *.root
+#rm -f *.root
 exit $RETCODE
 
