@@ -1,0 +1,137 @@
+#include "TDataFrame.hxx"
+#include "TCanvas.h"
+#include "TChain.h"
+#include "TF1.h"
+#include "TH2.h"
+#include "TLine.h"
+#include "TMath.h"
+#include "TPaveStats.h"
+#include "TROOT.h"
+#include "TStyle.h"
+
+//_____________________________________________________________________
+auto Select = [](TDataFrame& dataFrame) {
+   auto& ret = dataFrame
+   .Filter([](float md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
+           {"md0_d"})
+   .Filter([](float ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
+   .Filter([](float etads_d) { return TMath::Abs(etads_d) < 1.5; }, {"etads_d"})
+#if 0
+   // Needs TTreeReaderArray support in TDataFrame
+   .Filter([](int ik, int ipi, const ARRAY<int>& nhitrp) { return nhitrp[ik-1] * nhitrp[ipi-1] > 1; },
+           {"ik", "ipi", "nhitrp"})
+   .Filter([](int ik, const ARRAY<float>& rstart, const ARRAY<float>& rend) {
+      return rend[ik-1] - rstart[ik-1] > 22; },
+           { "ik", "rstart", "rend"})
+   .Filter([](int ipi, const ARRAY<float>& rstart, const ARRAY<float>& rend) {
+      return rend[ipi-1] - rstart[ipi-1] > 22; },
+           {"ipi", "rstart", "rend"})
+   .Filter([](int ik, const ARRAY<float>& nlhk) { return nlhk[ik-1] > 0.1; }, {"ik", "nlhk"})
+   .Filter([](int ipi, const ARRAY<float>& nlhpi) { return nlhpi[ipi-1] > 0.1; }, {"ipi", "nlhpi"})
+   .Filter([](int ipis, const ARRAY<float>& nlhpi) { return nlhpi[ipis - 1] > 0.1; }, {"ipis", "nlhpi"})
+#endif
+   .Filter([](int njets) { return njets >= 1; }, {"njets"});
+
+   return std::ref(ret);
+};
+
+const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
+
+//_____________________________________________________________________
+Double_t fdm5(Double_t *xx, Double_t *par)
+{
+   Double_t x = xx[0];
+   if (x <= 0.13957) return 0;
+   Double_t xp3 = (x-par[3])*(x-par[3]);
+   Double_t res = dxbin*(par[0]*TMath::Power(x-0.13957, par[1])
+                         + par[2] / 2.5066/par[4]*TMath::Exp(-xp3/2/par[4]/par[4]));
+   return res;
+}
+
+//_____________________________________________________________________
+Double_t fdm2(Double_t *xx, Double_t *par)
+{
+   static const Double_t sigma = 0.0012;
+   Double_t x = xx[0];
+   if (x <= 0.13957) return 0;
+   Double_t xp3 = (x-0.1454)*(x-0.1454);
+   Double_t res = dxbin*(par[0]*TMath::Power(x-0.13957, 0.25)
+                         + par[1] / 2.5066/sigma*TMath::Exp(-xp3/2/sigma/sigma));
+   return res;
+}
+
+//_____________________________________________________________________
+void FitAndPlotHdmd(TH1& hdmd) {
+   //create the canvas for the h1analysis fit
+   gStyle->SetOptFit();
+   TCanvas *c1 = new TCanvas("c1","h1analysis analysis",10,10,800,600);
+   c1->SetBottomMargin(0.15);
+   hdmd.GetXaxis()->SetTitle("m_{K#pi#pi} - m_{K#pi}[GeV/c^{2}]");
+   hdmd.GetXaxis()->SetTitleOffset(1.4);
+
+   //fit histogram hdmd with function f5 using the loglikelihood option
+   if (gROOT->GetListOfFunctions()->FindObject("f5"))
+      delete gROOT->GetFunction("f5");
+   TF1 *f5 = new TF1("f5",fdm5,0.139,0.17,5);
+   f5->SetParameters(1000000, .25, 2000, .1454, .001);
+   hdmd.Fit("f5","lr");
+
+   // Have the number of entries on the first histogram (to cross check when running
+   // with entry lists)
+   TPaveStats *psdmd = (TPaveStats *)hdmd.GetListOfFunctions()->FindObject("stats");
+   if (psdmd)
+      psdmd->SetOptStat(1110);
+   c1->Modified();
+}
+
+//_____________________________________________________________________
+void FitAndPlotH2(TH2& h2) {
+   //create the canvas for tau d0
+   gStyle->SetOptFit(0);
+   gStyle->SetOptStat(1100);
+   TCanvas *c2 = new TCanvas("c2","tauD0",100,100,800,600);
+   c2->SetGrid();
+   c2->SetBottomMargin(0.15);
+
+   // Project slices of 2-d histogram h2 along X , then fit each slice
+   // with function f2 and make a histogram for each fit parameter
+   // Note that the generated histograms are added to the list of objects
+   // in the current directory.
+   if (gROOT->GetListOfFunctions()->FindObject("f2"))
+      delete gROOT->GetFunction("f2");
+   TF1 *f2 = new TF1("f2",fdm2,0.139,0.17,2);
+   f2->SetParameters(10000, 10);
+   h2.FitSlicesX(f2,0,-1,1,"qln");
+
+   TH1D *h2_1 = (TH1D*)gDirectory->Get("h2_1");
+   h2_1->GetXaxis()->SetTitle("#tau[ps]");
+   h2_1->SetMarkerStyle(21);
+   h2_1->Draw();
+   c2->Update();
+   TLine *line = new TLine(0,0,0,c2->GetUymax());
+   line->Draw();
+}
+
+//_____________________________________________________________________
+void h1analysisDataFrame() {
+   TChain chain("h42");
+   chain.Add("http://root.cern.ch/files/h1/dstarmb.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp1a.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp1b.root");
+   chain.Add("http://root.cern.ch/files/h1/dstarp2.root");
+
+   TDataFrame dataFrame(chain);
+   auto selected = Select(dataFrame);
+
+   TH1F* hdmd = new TH1F("hdmd", "Dm_d",40,0.13,0.17);
+   TH2F* h2 = new TH2F("h2","ptD0 vs Dm_d",30,0.135,0.165,30,-3,6);
+   selected.get().Foreach([hdmd](float dm_d) { hdmd->Fill(dm_d); }, {"dm_d"});
+   selected.get().Foreach([h2](float dm_d, float rpd0_t, float ptd0_d) {
+                       h2->Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
+                    {"dm_d", "rpd0_t", "ptd0_d"});
+
+   dataFrame.Run();
+
+   FitAndPlotHdmd(*hdmd);
+   FitAndPlotH2(*h2);
+}
