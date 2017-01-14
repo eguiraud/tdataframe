@@ -338,6 +338,16 @@ enum class EActionType : short {
    kMean
 };
 
+template<typename Derived> class TDataFrameInterface;
+
+// A proxy for TDataFrame{Filter,Branch}. De facto it is a workaround for a smart reference.
+template<typename Derived>
+class TDataFrameProxy : public TDataFrameInterface<Derived> {
+   Derived *fDerivedPtr;
+public:
+   TDataFrameProxy(TDataFrameInterface<Derived> *iface) : TDataFrameInterface<Derived>(iface), fDerivedPtr(static_cast<Derived*>(iface)) { }
+   TDataFrame& GetDataFrame() const {return fDerivedPtr->GetDataFrame();}
+};
 
 // this class provides a common public interface to TDataFrame and TDataFrameFilter
 // it contains the Filter call and all action calls
@@ -345,30 +355,31 @@ template<typename Derived>
 class TDataFrameInterface {
 public:
    TDataFrameInterface() : fDerivedPtr(static_cast<Derived*>(this)) { }
+   TDataFrameInterface(TDataFrameInterface<Derived>* derived) : fDerivedPtr(static_cast<Derived*>(derived)) { }
    virtual ~TDataFrameInterface() { }
 
    template<typename F>
-   auto Filter(F f, const BranchList& bl = {}) -> TDataFrameFilter<F, Derived>& {
+   auto Filter(F f, const BranchList& bl = {}) -> TDataFrameProxy<TDataFrameFilter<F, Derived>> {
       ::CheckFilter(f);
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(f, bl, defBl);
       using DFF = TDataFrameFilter<F, Derived>;
       auto FilterPtr = std::unique_ptr<DFF>(new DFF(f, actualBl, *fDerivedPtr));
-      auto& FilterRef = *FilterPtr;
+      TDataFrameProxy<DFF> dffProxy(FilterPtr.get());
       Book(std::move(FilterPtr));
-      return FilterRef;
+      return dffProxy;
    }
 
    template<typename F>
    auto AddBranch(const std::string& name, F expression, const BranchList& bl = {})
-   -> TDataFrameBranch<F, Derived>& {
+   -> TDataFrameProxy<TDataFrameBranch<F, Derived>> {
       const BranchList& defBl = fDerivedPtr->GetDataFrame().GetDefaultBranches();
       const BranchList& actualBl = ::PickBranchList(expression, bl, defBl);
       using DFB = TDataFrameBranch<F, Derived>;
       auto BranchPtr = std::unique_ptr<DFB>(new DFB(name, expression, actualBl, *fDerivedPtr));
-      auto& BranchRef = *BranchPtr;
+      TDataFrameProxy<DFB> dfbProxy(BranchPtr.get());
       Book(std::move(BranchPtr));
-      return BranchRef;
+      return dfbProxy;
    }
 
    template<typename F>
@@ -753,10 +764,8 @@ public:
          for(auto& actionPtr : fBookedActions)
             actionPtr->Run(r.GetCurrentEntry());
 
-      // forget everything
+      // forget actions and "detach" the action result pointers marking them ready and forget them too
       fBookedActions.clear();
-      fBookedFilters.clear();
-      fBookedBranches.clear();
       for (auto aptr : fActionResultsPtrs) {
          aptr->SetReady();
       }

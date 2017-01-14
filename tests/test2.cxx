@@ -90,12 +90,13 @@ int main() {
 
    // TEST 2: Forked actions
    // always apply first filter before doing three different actions
-   auto& dd = d.Filter(ok, {});
+   auto fd = d.Filter(ok, {});
+   auto dd = fd.AddBranch("iseven", [](int b2) { return b2 % 2 == 0; }, {"b2"});
    dd.Foreach([](double x) { std::cout << x << " "; }, {"b1"});
    dd.Foreach([](int y) { std::cout << y << std::endl; }, {"b2"});
    auto c = dd.Count();
    // ... and another filter-and-foreach
-   auto& ddd = dd.Filter(ko, {});
+   auto ddd = dd.Filter(ko, {});
    ddd.Foreach([]() { std::cout << "ERROR" << std::endl; }, {});
    d.Run();
    auto cv = *c;
@@ -104,7 +105,7 @@ int main() {
 
    // TEST 3: default branches
    TDataFrame d2(treeName, &f, {"b1"});
-   auto& d2f = d2.Filter([](double b1) { return b1 < 5; }).Filter(ok, {});
+   auto d2f = d2.Filter([](double b1) { return b1 < 5; }).Filter(ok, {});
    auto c2 = d2f.Count();
    d2f.Foreach([](double b1) { std::cout << b1 << std::endl; });
    d2.Run();
@@ -114,7 +115,7 @@ int main() {
 
    // TEST 4: execute Run lazily and implicitly
    TDataFrame d3(treeName, &f, {"b1"});
-   auto& d3f = d3.Filter([](double b1) { return b1 < 4; }).Filter(ok, {});
+   auto d3f = d3.Filter([](double b1) { return b1 < 4; }).Filter(ok, {});
    auto c3 = d3f.Count();
    auto c3v = *c3;
    std::cout << "c3 " << c3v << std::endl;
@@ -122,7 +123,7 @@ int main() {
 
    // TEST 5: non trivial branch
    TDataFrame d4(treeName, &f, {"tracks"});
-   auto& d4f = d4.Filter([](FourVectors const & tracks) { return tracks.size() > 7; });
+   auto d4f = d4.Filter([](FourVectors const & tracks) { return tracks.size() > 7; });
    auto c4 = d4f.Count();
    auto c4v = *c4;
    std::cout << "c4 " << c4v << std::endl;
@@ -151,12 +152,12 @@ int main() {
 
    // TEST 8: AddBranch with default branches, filters, non-trivial types
    TDataFrame d7(treeName, &f, {"tracks"});
-   auto& dd7 = d7.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
-                 .AddBranch("ptsum", [](FourVectors const & tracks) {
-                    double sum = 0;
-                    for(auto& track: tracks)
-                       sum += track.Pt();
-                    return sum; });
+   auto dd7 = d7.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
+                .AddBranch("ptsum", [](FourVectors const & tracks) {
+                   double sum = 0;
+                   for(auto& track: tracks)
+                      sum += track.Pt();
+                   return sum; });
    auto c7 = dd7.Count();
    auto h7 = dd7.Histo("ptsum");
    auto c7v = *c7.get();
@@ -196,12 +197,12 @@ int main() {
 
    // TEST 10: Get a full column
    TDataFrame d9(treeName, &f, {"tracks"});
-   auto& dd9 = d9.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
-                 .AddBranch("ptsum", [](FourVectors const & tracks) {
-                    double sum = 0;
-                    for(auto& track: tracks)
-                       sum += track.Pt();
-                    return sum; });
+   auto dd9 = d9.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
+                .AddBranch("ptsum", [](FourVectors const & tracks) {
+                   double sum = 0;
+                   for(auto& track: tracks)
+                      sum += track.Pt();
+                   return sum; });
    auto b2List = dd9.Get<int>("b2");
    auto ptsumVec = dd9.Get<double, std::vector<double>>("ptsum");
 
@@ -213,6 +214,15 @@ int main() {
       std::cout << v << std::endl;
    }
 
+   // TEST 11: Re-hang action to TDataFrameProxy after running
+   TDataFrame d10(treeName, &f, {"tracks"});
+   auto d10f = d10.Filter([](FourVectors const & tracks) { return tracks.size() > 2; });
+   auto c10 = d10f.Count();
+   std::cout << "Count for the first run is " << *c10 << std::endl;
+   auto d10f_2 = d10f.Filter([](FourVectors const & tracks) { return tracks.size() < 5; });
+   auto c10_2 = d10f_2.Count();
+   std::cout << "Count for the second run after adding a filter is " << *c10_2 << std::endl;
+   std::cout << "Count for the first run was " << *c10 << std::endl;
 
    return 0;
 }

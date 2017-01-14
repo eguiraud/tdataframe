@@ -29,7 +29,7 @@ using FourVector = ROOT::Math::XYZTVector;
 using FourVectors = std::vector<FourVector>;
 using CylFourVector = ROOT::Math::RhoEtaPhiVector;
 
-// A simple helper function to fill a test tree: this makes the example 
+// A simple helper function to fill a test tree: this makes the example
 // stand-alone.
 void fill_tree(const char* filename, const char* treeName) {
    TFile f(filename,"RECREATE");
@@ -72,7 +72,7 @@ int tdf002_dataModel() {
    auto treeName = "myTree";
    fill_tree(fileName,treeName);
 
-   // We read the tree from the file and create a TDataFrame, a class that 
+   // We read the tree from the file and create a TDataFrame, a class that
    // allows us to interact with the data contained in the tree.
    TFile f(fileName);
    TDataFrame d(treeName, &f, {"tracks"});
@@ -98,9 +98,9 @@ int tdf002_dataModel() {
       return pts;
       };
 
-   auto& augmented_d = d.AddBranch("tracks_n", [](const FourVectors& tracks){return (int)tracks.size();})
-                        .Filter([](int tracks_n){return tracks_n > 2;}, {"tracks_n"})
-                        .AddBranch("tracks_pts", getPt);
+   auto augmented_d = d.AddBranch("tracks_n", [](const FourVectors& tracks){return (int)tracks.size();})
+                       .Filter([](int tracks_n){return tracks_n > 2;}, {"tracks_n"})
+                       .AddBranch("tracks_pts", getPt);
 
    auto trN = augmented_d.Histo("tracks_n",40,-.5,39.5);
    auto trPts = augmented_d.Histo("tracks_pts");
