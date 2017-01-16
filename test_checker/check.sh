@@ -21,7 +21,7 @@ for F in ${FILES[@]}; do
       echo "*********** output for test $F changed!"
       RETCODE=1
    elif (( $RES == 2)); then
-      echo "*********** something went wrong diffing outputn of test $F!"
+      echo "*********** something went wrong diffing output of test $F!"
       RETCODE=2
    fi
 done
@@ -35,7 +35,7 @@ for M in ${MACROS[@]}; do
       echo "*********** output for test $M changed!"
       RETCODE=1
    elif (( $RES == 2)); then
-      echo "*********** something went wrong diffing outputn of test $M!"
+      echo "*********** something went wrong diffing output of test $M!"
       RETCODE=2
    fi
 done
