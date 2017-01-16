@@ -28,14 +28,14 @@ void test_ctors() {
 
    // Filter, AddBranch, Count and Foreach. We want one printout
    std::cout << "building dataframe...\n";
-   TDataFrame d(treeName, &f, {"obj"});
+   ROOT::TDataFrame d(treeName, &f, {"obj"});
    std::cout << "done\nbuilding chain...\n";
-   auto& dd = d.Filter([](const Sentinel& o) { std::cout << "filter\n"; return o.get() > 0; })
-               .AddBranch("x", [](const Sentinel& o) { std::cout << "addbranch\n"; return o.get(); });
+   auto dd = d.Filter([](const Sentinel& o) { std::cout << "filter\n"; return o.get() > 0; })
+              .AddBranch("x", [](const Sentinel& o) { std::cout << "addbranch\n"; return o.get(); });
    auto r = dd.Count();
-   dd.Foreach([](const Sentinel& o) { std::cout << "foreach: " << o.get() << std::endl; });
    std::cout << "done\n";
    std::cout << "running chain...\n";
+   dd.Foreach([](const Sentinel& o) { std::cout << "foreach: " << o.get() << std::endl; });
    auto c = *r;
    std::cout << "done\n";
    std::cout << "count: " << c << std::endl;
