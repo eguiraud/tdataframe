@@ -79,57 +79,54 @@ int main() {
 
    TFile f(fileName);
    // Define data-frame
-   TDataFrame d(treeName, &f);
+   ROOT::TDataFrame d(treeName, &f);
    // ...and two dummy filters
    auto ok = []() { return true; };
    auto ko = []() { return false; };
 
    // TEST 1: no-op filter and Run
    d.Filter(ok, {}).Foreach([](double x) { std::cout << x << std::endl; }, {"b1"});
-   d.Run();
 
    // TEST 2: Forked actions
    // always apply first filter before doing three different actions
-   auto& dd = d.Filter(ok, {});
+   auto dd = d.Filter(ok, {});
    dd.Foreach([](double x) { std::cout << x << " "; }, {"b1"});
    dd.Foreach([](int y) { std::cout << y << std::endl; }, {"b2"});
    auto c = dd.Count();
    // ... and another filter-and-foreach
-   auto& ddd = dd.Filter(ko, {});
+   auto ddd = dd.Filter(ko, {});
    ddd.Foreach([]() { std::cout << "ERROR" << std::endl; }, {});
-   d.Run();
    auto cv = *c;
    std::cout << "c " << cv << std::endl;
    CheckRes(cv,20U,"Forked Actions");
 
    // TEST 3: default branches
-   TDataFrame d2(treeName, &f, {"b1"});
-   auto& d2f = d2.Filter([](double b1) { return b1 < 5; }).Filter(ok, {});
+   ROOT::TDataFrame d2(treeName, &f, {"b1"});
+   auto d2f = d2.Filter([](double b1) { return b1 < 5; }).Filter(ok, {});
    auto c2 = d2f.Count();
    d2f.Foreach([](double b1) { std::cout << b1 << std::endl; });
-   d2.Run();
-   auto c2v = *c2;
+      auto c2v = *c2;
    std::cout << "c2 " << c2v << std::endl;
    CheckRes(c2v,5U,"Default branches");
 
    // TEST 4: execute Run lazily and implicitly
-   TDataFrame d3(treeName, &f, {"b1"});
-   auto& d3f = d3.Filter([](double b1) { return b1 < 4; }).Filter(ok, {});
+   ROOT::TDataFrame d3(treeName, &f, {"b1"});
+   auto d3f = d3.Filter([](double b1) { return b1 < 4; }).Filter(ok, {});
    auto c3 = d3f.Count();
    auto c3v = *c3;
    std::cout << "c3 " << c3v << std::endl;
    CheckRes(c3v,4U,"Execute Run lazily and implicitly");
 
    // TEST 5: non trivial branch
-   TDataFrame d4(treeName, &f, {"tracks"});
-   auto& d4f = d4.Filter([](FourVectors const & tracks) { return tracks.size() > 7; });
+   ROOT::TDataFrame d4(treeName, &f, {"tracks"});
+   auto d4f = d4.Filter([](FourVectors const & tracks) { return tracks.size() > 7; });
    auto c4 = d4f.Count();
    auto c4v = *c4;
    std::cout << "c4 " << c4v << std::endl;
    CheckRes(c4v,1U,"Non trivial test");
 
    // TEST 6: Create a histogram
-   TDataFrame d5(treeName, &f, {"b2"});
+   ROOT::TDataFrame d5(treeName, &f, {"b2"});
    auto h1 = d5.Histo();
    auto h2 = d5.Histo("b1");
    TH1F dvHisto("dvHisto","The DV histo", 64, -8, 8);
@@ -141,17 +138,17 @@ int main() {
    std::cout << "Histo4: nEntries " << h4->GetEntries() << std::endl;
 
    // TEST 7: AddBranch
-   TDataFrame d6(treeName, &f);
+   ROOT::TDataFrame d6(treeName, &f);
    auto r6 = d6.AddBranch("iseven", [](int b2) { return b2 % 2 == 0; }, {"b2"})
                .Filter([](bool iseven) { return iseven; }, {"iseven"})
                .Count();
-   auto c6v = *r6.get();
+   auto c6v = *r6.Get();
    std::cout << c6v << std::endl;
    CheckRes(c6v, 10U, "AddBranch");
 
    // TEST 8: AddBranch with default branches, filters, non-trivial types
-   TDataFrame d7(treeName, &f, {"tracks"});
-   auto& dd7 = d7.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
+   ROOT::TDataFrame d7(treeName, &f, {"tracks"});
+   auto dd7 = d7.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
                  .AddBranch("ptsum", [](FourVectors const & tracks) {
                     double sum = 0;
                     for(auto& track: tracks)
@@ -159,13 +156,13 @@ int main() {
                     return sum; });
    auto c7 = dd7.Count();
    auto h7 = dd7.Histo("ptsum");
-   auto c7v = *c7.get();
+   auto c7v = *c7.Get();
    CheckRes(c7v, 10U, "AddBranch complicated");
    std::cout << "AddBranch Histo entries: " << h7->GetEntries() << std::endl;
    std::cout << "AddBranch Histo mean: " << h7->GetMean() << std::endl;
 
    // TEST 9: Get minimum, maximum, mean
-   TDataFrame d8(treeName, &f, {"b2"});
+   ROOT::TDataFrame d8(treeName, &f, {"b2"});
    auto min_b2 = d8.Min();
    auto min_dv = d8.Min("dv");
    auto max_b2 = d8.Max();
@@ -195,8 +192,8 @@ int main() {
    std::cout << "Mean dv: " << *mean_dv << std::endl;
 
    // TEST 10: Get a full column
-   TDataFrame d9(treeName, &f, {"tracks"});
-   auto& dd9 = d9.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
+   ROOT::TDataFrame d9(treeName, &f, {"tracks"});
+   auto dd9 = d9.Filter([](int b2) { return b2 % 2 == 0; }, {"b2"})
                  .AddBranch("ptsum", [](FourVectors const & tracks) {
                     double sum = 0;
                     for(auto& track: tracks)
@@ -211,6 +208,31 @@ int main() {
 
    for (auto& v : *ptsumVec) {
       std::cout << v << std::endl;
+   }
+
+   // TEST 11: Re-hang action to TDataFrameProxy after running
+   ROOT::TDataFrame d10(treeName, &f, {"tracks"});
+   auto d10f = d10.Filter([](FourVectors const & tracks) { return tracks.size() > 2; });
+   auto c10 = d10f.Count();
+   std::cout << "Count for the first run is " << *c10 << std::endl;
+   auto d10f_2 = d10f.Filter([](FourVectors const & tracks) { return tracks.size() < 5; });
+   auto c10_2 = d10f_2.Count();
+   std::cout << "Count for the second run after adding a filter is " << *c10_2 << std::endl;
+   std::cout << "Count for the first run was " << *c10 << std::endl;
+
+   // TEST 12: Test a frame which goes out of scope
+   auto l = [](FourVectors const & tracks) { return tracks.size() > 2; };
+   auto giveMeFilteredDF = [&](){
+      ROOT::TDataFrame d11(treeName, &f, {"tracks"});
+      auto a = d11.Filter(l);
+      return a;
+   };
+   auto filteredDF = giveMeFilteredDF();
+   // Prevent bombing
+   try {
+      auto c11 = filteredDF.Count();
+   } catch (const std::runtime_error& e) {
+      std::cout << "Exception catched: the dataframe went out of scope when booking an action." << std::endl;
    }
 
 
