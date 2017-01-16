@@ -94,7 +94,7 @@ void FillTree(const char* filename, const char* treeName) {
 
 void RunTDataFrame(TFile& f){
 
-   auto getPt = [](const FourVectors& tracks, FourVector::Pt) {
+   auto getPt = [](const FourVectors& tracks) {
       std::vector<double> pts;
       pts.reserve(tracks.size());
       for (auto& t:tracks)
