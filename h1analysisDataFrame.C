@@ -10,8 +10,8 @@
 #include "TStyle.h"
 
 //_____________________________________________________________________
-auto Select = [](TDataFrame& dataFrame) {
-   auto& ret = dataFrame
+auto Select = [](ROOT::TDataFrame& dataFrame) {
+   auto ret = dataFrame
    .Filter([](float md0_d) { return TMath::Abs(md0_d-1.8646) < 0.04; },
            {"md0_d"})
    .Filter([](float ptds_d) { return ptds_d > 2.5; }, {"ptds_d"})
@@ -32,7 +32,7 @@ auto Select = [](TDataFrame& dataFrame) {
 #endif
    .Filter([](int njets) { return njets >= 1; }, {"njets"});
 
-   return std::ref(ret);
+   return ret;
 };
 
 const Double_t dxbin = (0.17-0.13)/40;   // Bin-width
@@ -120,17 +120,15 @@ void h1analysisDataFrame() {
    chain.Add("http://root.cern.ch/files/h1/dstarp1b.root");
    chain.Add("http://root.cern.ch/files/h1/dstarp2.root");
 
-   TDataFrame dataFrame(chain);
+   ROOT::TDataFrame dataFrame(chain);
    auto selected = Select(dataFrame);
 
    TH1F* hdmd = new TH1F("hdmd", "Dm_d",40,0.13,0.17);
    TH2F* h2 = new TH2F("h2","ptD0 vs Dm_d",30,0.135,0.165,30,-3,6);
-   selected.get().Foreach([hdmd](float dm_d) { hdmd->Fill(dm_d); }, {"dm_d"});
-   selected.get().Foreach([h2](float dm_d, float rpd0_t, float ptd0_d) {
+   selected.Foreach([hdmd, h2](float dm_d, float rpd0_t, float ptd0_d) {
+                       hdmd->Fill(dm_d); 
                        h2->Fill(dm_d, rpd0_t/0.029979*1.8646/ptd0_d); },
                     {"dm_d", "rpd0_t", "ptd0_d"});
-
-   dataFrame.Run();
 
    FitAndPlotHdmd(*hdmd);
    FitAndPlotH2(*h2);
