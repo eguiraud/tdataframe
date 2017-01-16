@@ -33,7 +33,11 @@ struct TTypeList {
 
 // extract parameter types from a callable object
 template <typename T>
-struct TFunctionTraits : public TFunctionTraits<decltype(&T::operator())> {};
+struct TFunctionTraits {
+   using ArgTypes_t = typename TFunctionTraits<decltype(&T::operator())>::ArgTypes_t;
+   using ArgTypesNoDecay_t = typename TFunctionTraits<decltype(&T::operator())>::ArgTypesNoDecay_t;
+   using RetType_t = typename TFunctionTraits<decltype(&T::operator())>::RetType_t;
+};
 
 // lambdas and std::function
 template <typename R, typename T, typename... Args>
@@ -51,9 +55,17 @@ struct TFunctionTraits<R (T::*)(Args...)> {
    using RetType_t = R;
 };
 
-// free functions
+// function pointers
 template <typename R, typename... Args>
 struct TFunctionTraits<R (*)(Args...)> {
+   using ArgTypes_t = TTypeList<typename std::decay<Args>::type...>;
+   using ArgTypesNoDecay_t = TTypeList<Args...>;
+   using RetType_t = R;
+};
+
+// free functions
+template <typename R, typename... Args>
+struct TFunctionTraits<R (Args...)> {
    using ArgTypes_t = TTypeList<typename std::decay<Args>::type...>;
    using ArgTypesNoDecay_t = TTypeList<Args...>;
    using RetType_t = R;
