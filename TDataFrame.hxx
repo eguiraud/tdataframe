@@ -243,7 +243,7 @@ const BranchList &PickBranchList(F f, const BranchList &bl, const BranchList &de
          useDefBl = true;
       } else {
          auto msg = "mismatch between number of filter arguments (" + std::to_string(nArgs) +
-                    ") and number of branches (" + std::to_string(bl.size() ?: defBl.size()) + ")";
+                    ") and number of branches (" + std::to_string(bl.size() ? bl.size() : defBl.size()) + ")";
          throw std::runtime_error(msg);
       }
    }
