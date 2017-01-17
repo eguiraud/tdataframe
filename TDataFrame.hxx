@@ -601,8 +601,8 @@ class TDataFrameImpl;
 
 template <typename Proxied>
 class TDataFrameInterface {
+   template<typename T> friend class TDataFrameInterface;
 public:
-   TDataFrameInterface(std::shared_ptr<Proxied> proxied) : fProxiedPtr(proxied) {}
    TDataFrameInterface(const std::string &treeName, TDirectory *dirPtr, const BranchList &defaultBranches = {});
    TDataFrameInterface(TTree &tree, const BranchList &defaultBranches = {});
 
@@ -730,6 +730,8 @@ public:
    }
 
 private:
+   TDataFrameInterface(std::shared_ptr<Proxied> proxied) : fProxiedPtr(proxied) {}
+
    /// Get the TDataFrameImpl if reachable. If not, throw.
    std::weak_ptr<Details::TDataFrameImpl> GetDataFrameChecked()
    {
