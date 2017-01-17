@@ -1052,7 +1052,7 @@ public:
    }
 };
 
-class TDataFrameImpl : public std::enable_shared_from_this<TDataFrameImpl> {
+class TDataFrameImpl {
 
    Internal::ActionBaseVec_t fBookedActions;
    Details::FilterBaseVec_t fBookedFilters;
