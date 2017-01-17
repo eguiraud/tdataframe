@@ -351,8 +351,8 @@ class FillOperation {
    using Buf_t = std::vector<BufEl_t>;
 
    std::vector<Buf_t> fBuffers;
-   unsigned int fBufSize;
    std::shared_ptr<TH1F> fResultHist;
+   unsigned int fBufSize;
    Buf_t fMin;
    Buf_t fMax;
 
