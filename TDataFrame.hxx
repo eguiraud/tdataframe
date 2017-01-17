@@ -19,7 +19,6 @@
 #include <thread>
 #include <type_traits> // std::decay
 #include <typeinfo>
-#include <utility> // std::move
 #include <vector>
 
 // Meta programming utilities, perhaps to be moved in core/foundation
@@ -209,7 +208,7 @@ TVBVec_t BuildReaderValues(TTreeReader &r, const BranchList &bl, const BranchLis
    // branch is a "fake" branch created with AddBranch, false if they are
    // actual branches present in the TTree.
    std::array<bool, sizeof...(S)> isTmpBranch;
-   for (unsigned int i   = 0; i < isTmpBranch.size(); ++i)
+   for (unsigned int i = 0; i < isTmpBranch.size(); ++i)
       isTmpBranch[i] = std::find(tmpbl.begin(), tmpbl.end(), bl.at(i)) != tmpbl.end();
 
    // Build vector of pointers to TTreeReaderValueBase.
@@ -603,7 +602,6 @@ class TDataFrameImpl;
 template <typename Proxied>
 class TDataFrameInterface {
 public:
-   TDataFrameInterface() = delete;
    TDataFrameInterface(std::shared_ptr<Proxied> proxied) : fProxiedPtr(proxied) {}
    TDataFrameInterface(const std::string &treeName, TDirectory *dirPtr, const BranchList &defaultBranches = {});
    TDataFrameInterface(TTree &tree, const BranchList &defaultBranches = {});
@@ -1113,12 +1111,12 @@ public:
                }
             }
 
-            BuildAllReaderValues(r, slot); // TODO: if TTreeProcessor reuses the same TTreeReader object there is no
-                                           // need to re-build the TTreeReaderValues
+            BuildAllReaderValues(r, slot);
 
             // recursive call to check filters and conditionally execute actions
             while (r.Next())
-               for (auto &actionPtr : fBookedActions) actionPtr->Run(slot, r.GetCurrentEntry());
+               for (auto &actionPtr : fBookedActions)
+                  actionPtr->Run(slot, r.GetCurrentEntry());
          });
       } else {
 #endif // R__USE_IMT
@@ -1134,7 +1132,8 @@ public:
 
          // recursive call to check filters and conditionally execute actions
          while (r.Next())
-            for (auto &actionPtr : fBookedActions) actionPtr->Run(0, r.GetCurrentEntry());
+            for (auto &actionPtr : fBookedActions)
+               actionPtr->Run(0, r.GetCurrentEntry());
 #ifdef R__USE_IMT
       }
 #endif // R__USE_IMT
@@ -1194,11 +1193,11 @@ public:
 
    void SetFirstData(const std::shared_ptr<TDataFrameImpl>& sp) { fFirstData = sp; }
 
-   void Book(Internal::ActionBasePtr_t actionPtr) { fBookedActions.emplace_back(std::move(actionPtr)); }
+   void Book(Internal::ActionBasePtr_t actionPtr) { fBookedActions.emplace_back(actionPtr); }
 
-   void Book(Details::FilterBasePtr_t filterPtr) { fBookedFilters.emplace_back(std::move(filterPtr)); }
+   void Book(Details::FilterBasePtr_t filterPtr) { fBookedFilters.emplace_back(filterPtr); }
 
-   void Book(TmpBranchBasePtr_t branchPtr) { fBookedBranches[branchPtr->GetName()] = std::move(branchPtr); }
+   void Book(TmpBranchBasePtr_t branchPtr) { fBookedBranches[branchPtr->GetName()] = branchPtr; }
 
    // dummy call, end of recursive chain of calls
    bool CheckFilters(int, unsigned int) { return true; }
