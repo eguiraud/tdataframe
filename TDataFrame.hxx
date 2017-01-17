@@ -137,7 +137,6 @@ struct TIsContainer {
 
 } // end NS ROOT
 
-// Result pointer: can move below?
 namespace ROOT {
 
 using BranchList = std::vector<std::string>;
