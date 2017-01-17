@@ -1159,6 +1159,15 @@ public:
 
    const BranchList GetTmpBranches() const { return fTmpBranches; }
 
+   TTree* GetTree() const {
+      if (fTree) {
+         return fTree;
+      } else {
+         auto treePtr = static_cast<TTree*>(fDirPtr->Get(fTreeName.c_str()));
+         return treePtr;
+      }
+   }
+
    const TDataFrameBranchBase &GetBookedBranch(const std::string &name) const
    {
       return *fBookedBranches.find(name)->second.get();
