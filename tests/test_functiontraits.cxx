@@ -1,6 +1,7 @@
 #include "TDataFrame.hxx"
 
 #include <iostream>
+#include <memory>
 #include <type_traits>
 #include <typeinfo>
 #include <vector>
@@ -86,12 +87,14 @@ int main() {
                               TFunctionTraits<Functor2>::RetType_t>::value,
                  "Functor2 ret type");
 
-   // lambda
-   auto boolvec = std::vector<bool>{true, false};
+   // mutable lambda
+   auto boolvec = std::make_shared<std::vector<bool>>(2, false);
    auto lambda1 = [boolvec](const bool b) mutable -> std::vector<bool>& {
-      boolvec[0] = b;
-      return boolvec;
+      boolvec->at(0) = b;
+      return *boolvec;
    };
+
+   // lambda
    auto lambda2 = [](Dummy&, int*, const std::vector<Dummy>&) { return Dummy(); };
    static_assert(std::is_same<TTypeList<bool>,
                               TFunctionTraits<decltype(lambda1)>::ArgTypes_t>::value,
