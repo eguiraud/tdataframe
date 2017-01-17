@@ -573,7 +573,7 @@ public:
       for (auto &s : fSums) sumOfSums += s;
       Count_t sumOfCounts = 0;
       for (auto &c : fCounts) sumOfCounts += c;
-      *fResultMean = sumOfSums / sumOfCounts;
+      *fResultMean = sumOfSums / (sumOfCounts > 0 ? sumOfCounts : 1);
    }
 };
 
