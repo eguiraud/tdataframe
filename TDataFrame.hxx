@@ -80,7 +80,7 @@ struct TRemoveFirst<TTypeList<T, Args...>> {
    using Types_t = TTypeList<Args...>;
 };
 
-// returned wrapper around f that adds the unsigned int slot parameter
+// return wrapper around f that prepends an `unsigned int slot` parameter
 template <typename R, typename F, typename... Args>
 std::function<R(unsigned int, Args...)> AddSlotParameter(F f, TTypeList<Args...>)
 {
