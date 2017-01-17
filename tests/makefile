@@ -1,5 +1,5 @@
 TESTS:=tdf001_introduction tdf002_dataModel test2 regression_multipletriggerrun \
-test_par testIMT test_functiontraits
+test_par testIMT test_functiontraits regression_zeroentries
 
 all: $(TESTS)
 
