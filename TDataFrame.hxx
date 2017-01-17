@@ -231,6 +231,15 @@ void CheckFilter(Filter f)
    static_assert(std::is_same<FilterRet_t, bool>::value, "filter functions must return a bool");
 }
 
+void CheckTmpBranch(const std::string& branchName, TTree *treePtr)
+{
+   auto branch = treePtr->GetBranch(branchName.c_str());
+   if (branch != nullptr) {
+      auto msg = "branch \"" + branchName + "\" already present in TTree";
+      throw std::runtime_error(msg);
+   }
+}
+
 template <typename F>
 const BranchList &PickBranchList(F f, const BranchList &bl, const BranchList &defBl)
 {
@@ -617,7 +626,9 @@ public:
    TDataFrameInterface<Details::TDataFrameBranch<F, Proxied>> AddBranch(const std::string &name, F expression,
                                                                         const BranchList &bl = {})
    {
-      const BranchList &defBl = fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
+      auto df = fProxiedPtr->GetDataFrame().lock();
+      ROOT::Internal::CheckTmpBranch(name, df->GetTree());
+      const BranchList &defBl = df->GetDefaultBranches();
       const BranchList &actualBl = Internal::PickBranchList(expression, bl, defBl);
       using DFB_t = Details::TDataFrameBranch<F, Proxied>;
       auto BranchPtr = std::make_shared<DFB_t>(name, expression, actualBl, fProxiedPtr);
