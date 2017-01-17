@@ -272,10 +272,17 @@ class TDataFrameAction : public TDataFrameActionBase {
    using BranchTypes_t = typename TDFTraitsUtils::TRemoveFirst<typename TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t>::Types_t;
    using TypeInd_t = typename TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
 
+   F fAction;
+   const BranchList fBranches;
+   const BranchList fTmpBranches;
+   PrevDataFrame *fPrevData;
+   std::weak_ptr<Details::TDataFrameImpl> fFirstData;
+   std::vector<TVBVec_t> fReaderValues;
+
 public:
    TDataFrameAction(F f, const BranchList &bl, std::weak_ptr<PrevDataFrame> pd)
-      : fAction(f), fBranches(bl), fTmpBranches(pd.lock()->fTmpBranches), fPrevData(pd.lock().get()),
-        fFirstData(pd.lock()->fFirstData) { }
+      : fAction(f), fBranches(bl), fTmpBranches(pd.lock()->GetTmpBranches()), fPrevData(pd.lock().get()),
+        fFirstData(pd.lock()->GetDataFrame()) { }
 
    TDataFrameAction(const TDataFrameAction &) = delete;
 
@@ -311,13 +318,6 @@ public:
       // S and types are expanded simultaneously by "..."
       fAction(slot, GetBranchValue<S, BranchTypes>(fReaderValues[slot][S], slot, entry, fBranches[S], fFirstData)...);
    }
-
-   F fAction;
-   const BranchList fBranches;
-   const BranchList fTmpBranches;
-   PrevDataFrame *fPrevData;
-   std::weak_ptr<Details::TDataFrameImpl> fFirstData;
-   std::vector<TVBVec_t> fReaderValues;
 };
 
 namespace Operations {
@@ -871,11 +871,13 @@ private:
       }
       return SimpleAction<BranchType, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
    }
+
    template <typename T>
    void Book(std::shared_ptr<T> ptr)
    {
       fProxiedPtr->Book(ptr);
    }
+
    std::shared_ptr<Proxied> fProxiedPtr;
 };
 
@@ -901,10 +903,20 @@ class TDataFrameBranch : public TDataFrameBranchBase {
    using TypeInd_t = typename Internal::TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
    using RetType_t = typename Internal::TDFTraitsUtils::TFunctionTraits<F>::RetType_t;
 
+   const std::string fName;
+   F fExpression;
+   const BranchList fBranches;
+   BranchList fTmpBranches;
+   std::vector<ROOT::Internal::TVBVec_t> fReaderValues;
+   std::vector<std::shared_ptr<RetType_t>> fLastResultPtr;
+   std::weak_ptr<TDataFrameImpl> fFirstData;
+   PrevData *fPrevData;
+   std::vector<int> fLastCheckedEntry = {-1};
+
 public:
    TDataFrameBranch(const std::string &name, F expression, const BranchList &bl, std::weak_ptr<PrevData> pd)
-      : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.lock()->fTmpBranches),
-        fFirstData(pd.lock()->fFirstData), fPrevData(pd.lock().get())
+      : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.lock()->GetTmpBranches()),
+        fFirstData(pd.lock()->GetDataFrame()), fPrevData(pd.lock().get())
    {
       fTmpBranches.emplace_back(name);
    }
@@ -912,6 +924,8 @@ public:
    TDataFrameBranch(const TDataFrameBranch &) = delete;
 
    std::weak_ptr<TDataFrameImpl> GetDataFrame() const { return fFirstData; }
+
+   BranchList GetTmpBranches() const { return fTmpBranches; }
 
    void BuildReaderValues(TTreeReader &r, unsigned int slot)
    {
@@ -958,16 +972,6 @@ public:
          Internal::GetBranchValue<S, BranchTypes>(fReaderValues[slot][S], slot, entry, fBranches[S], fFirstData)...));
       return valuePtr;
    }
-
-   const std::string fName;
-   F fExpression;
-   const BranchList fBranches;
-   BranchList fTmpBranches;
-   std::vector<ROOT::Internal::TVBVec_t> fReaderValues;
-   std::vector<std::shared_ptr<RetType_t>> fLastResultPtr;
-   std::weak_ptr<TDataFrameImpl> fFirstData;
-   PrevData *fPrevData;
-   std::vector<int> fLastCheckedEntry = {-1};
 };
 
 class TDataFrameFilterBase {
@@ -984,12 +988,23 @@ class TDataFrameFilter : public TDataFrameFilterBase {
    using BranchTypes_t = typename Internal::TDFTraitsUtils::TFunctionTraits<FilterF>::ArgTypes_t;
    using TypeInd_t = typename Internal::TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
 
+   FilterF fFilter;
+   const BranchList fBranches;
+   const BranchList fTmpBranches;
+   PrevDataFrame *fPrevData;
+   std::weak_ptr<TDataFrameImpl> fFirstData;
+   std::vector<Internal::TVBVec_t> fReaderValues = {};
+   std::vector<int> fLastCheckedEntry = {-1};
+   std::vector<int> fLastResult = {true}; // std::vector<bool> cannot be used in a MT context safely
+
 public:
    TDataFrameFilter(FilterF f, const BranchList &bl, std::weak_ptr<PrevDataFrame> pd)
-      : fFilter(f), fBranches(bl), fTmpBranches(pd.lock()->fTmpBranches), fPrevData(pd.lock().get()),
-        fFirstData(pd.lock()->fFirstData) { }
+      : fFilter(f), fBranches(bl), fTmpBranches(pd.lock()->GetTmpBranches()), fPrevData(pd.lock().get()),
+        fFirstData(pd.lock()->GetDataFrame()) { }
 
    std::weak_ptr<TDataFrameImpl> GetDataFrame() const { return fFirstData; }
+
+   BranchList GetTmpBranches() const { return fTmpBranches; }
 
    TDataFrameFilter(const TDataFrameFilter &) = delete;
 
@@ -1035,18 +1050,24 @@ public:
       fLastCheckedEntry.resize(nSlots);
       fLastResult.resize(nSlots);
    }
-
-   FilterF fFilter;
-   const BranchList fBranches;
-   const BranchList fTmpBranches;
-   PrevDataFrame *fPrevData;
-   std::weak_ptr<TDataFrameImpl> fFirstData;
-   std::vector<Internal::TVBVec_t> fReaderValues = {};
-   std::vector<int> fLastCheckedEntry = {-1};
-   std::vector<int> fLastResult = {true}; // std::vector<bool> cannot be used in a MT context safely
 };
 
 class TDataFrameImpl : public std::enable_shared_from_this<TDataFrameImpl> {
+
+   Internal::ActionBaseVec_t fBookedActions;
+   Details::FilterBaseVec_t fBookedFilters;
+   std::map<std::string, TmpBranchBasePtr_t> fBookedBranches;
+   std::vector<TActionResultPtrBase *> fActionResultsPtrs;
+   std::string fTreeName;
+   TDirectory *fDirPtr = nullptr;
+   TTree *fTree = nullptr;
+   const BranchList fDefaultBranches;
+   // always empty: each object in the chain copies this list from the previous
+   // and they must copy an empty list from the base TDataFrameImpl
+   const BranchList fTmpBranches;
+   unsigned int fNSlots;
+   std::weak_ptr<TDataFrameImpl> fFirstData;
+
 public:
    TDataFrameImpl(const std::string &treeName, TDirectory *dirPtr, const BranchList &defaultBranches = {})
       : fTreeName(treeName), fDirPtr(dirPtr), fDefaultBranches(defaultBranches), fNSlots(ROOT::Internal::GetNSlots()) { }
@@ -1136,6 +1157,8 @@ public:
 
    const BranchList &GetDefaultBranches() const { return fDefaultBranches; }
 
+   const BranchList GetTmpBranches() const { return fTmpBranches; }
+
    const TDataFrameBranchBase &GetBookedBranch(const std::string &name) const
    {
       return *fBookedBranches.find(name)->second.get();
@@ -1150,6 +1173,8 @@ public:
 
    std::string GetTreeName() const { return fTreeName; }
 
+   void SetFirstData(const std::shared_ptr<TDataFrameImpl>& sp) { fFirstData = sp; }
+
    void Book(Internal::ActionBasePtr_t actionPtr) { fBookedActions.emplace_back(std::move(actionPtr)); }
 
    void Book(Details::FilterBasePtr_t filterPtr) { fBookedFilters.emplace_back(std::move(filterPtr)); }
@@ -1163,20 +1188,6 @@ public:
    void RegisterActionResult(TActionResultPtrBase *ptr) { fActionResultsPtrs.emplace_back(ptr); }
 
    unsigned int GetNSlots() {return fNSlots;}
-
-   Internal::ActionBaseVec_t fBookedActions;
-   Details::FilterBaseVec_t fBookedFilters;
-   std::map<std::string, TmpBranchBasePtr_t> fBookedBranches;
-   std::vector<TActionResultPtrBase *> fActionResultsPtrs;
-   std::string fTreeName;
-   TDirectory *fDirPtr = nullptr;
-   TTree *fTree = nullptr;
-   const BranchList fDefaultBranches;
-   // always empty: each object in the chain copies this list from the previous
-   // and they must copy an empty list from the base TDataFrameImpl
-   const BranchList fTmpBranches;
-   std::weak_ptr<TDataFrameImpl> fFirstData;
-   unsigned int fNSlots;
 };
 
 } // end NS Details
@@ -1190,14 +1201,14 @@ TDataFrameInterface<T>::TDataFrameInterface(const std::string &treeName, TDirect
                                             const BranchList &defaultBranches)
    : fProxiedPtr(std::make_shared<Details::TDataFrameImpl>(treeName, dirPtr, defaultBranches))
 {
-   fProxiedPtr->fFirstData = fProxiedPtr->shared_from_this();
+   fProxiedPtr->SetFirstData(fProxiedPtr);
 }
 
 template <typename T>
 TDataFrameInterface<T>::TDataFrameInterface(TTree &tree, const BranchList &defaultBranches)
    : fProxiedPtr(std::make_shared<Details::TDataFrameImpl>(tree, defaultBranches))
 {
-   fProxiedPtr->fFirstData = fProxiedPtr->shared_from_this();
+   fProxiedPtr->SetFirstData(fProxiedPtr);
 }
 
 void TActionResultPtrBase::TriggerRun()
