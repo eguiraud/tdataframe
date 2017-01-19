@@ -11,7 +11,7 @@ fi
 popd > /dev/null
 
 echo "checking executables..."
-FILES=(test2 testIMT tdf001_introduction tdf002_dataModel regression_multipletriggerrun \
+FILES=(test_misc testIMT tdf001_introduction tdf002_dataModel regression_multipletriggerrun \
        test_functiontraits regression_zeroentries test_branchoverwrite)
 RETCODE=0
 for F in ${FILES[@]}; do
