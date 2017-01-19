@@ -76,18 +76,18 @@ TFile file(fileName);
 // the branch list is used as fallback whenever none is specified
 TDataFrame d(treeName, &file, {"b1","b2"});
 // apply a cut and save the state of the chain
-auto filteredDF = d.Filter(myBigCut);
+auto filtered = d.Filter(myBigCut);
 // plot branch "b1" at this point of the chain. no need to specify the type if it's a common one, e.g. double
-auto h1 = filteredDF.Histo("b1");
+auto h1 = filtered.Histo("b1");
 // create a new branch "v" with a vector extracted from a complex object (only for filtered entries)
 // from now on we can refer to "v" as if it was a real branch
-auto newBranchDF = filtered.AddBranch("v", [](const Obj& o) { return o.getVector(); }, {"obj"});
+auto newBranch = filtered.AddBranch("v", [](const Obj& o) { return o.getVector(); }, {"obj"});
 // apply a cut and fill a histogram with "v"
 // since "v" is a vector type we loop over it and fill the histogram with its elements
 // since "v" is a vector of a common type, say double, we do not need to specify the type
-auto h2 = newBranchDF.Filter(cut1).Histo("v");
+auto h2 = newBranch.Filter(cut1).Histo("v");
 // apply a different cut and fill a new histogram
-auto h3 = newBranchDF.Filter(cut2).Histo("v");
+auto h3 = newBranch.Filter(cut2).Histo("v");
 // as soon as we access the result of one of the actions, the whole (forked) functional chain is run
 // objects read from each branch are built once and never copied around
 h2->Draw();
