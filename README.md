@@ -71,18 +71,17 @@ root -b tests/test2.cxx
 ## Example code
 The following snippet of code applies a strict cut to all events, creates a new temporary branch from the remaining ones, and then "forks" the stream of actions to apply two different cuts and fill histograms with the values contained in the temporary branch.
 ```c++
-#include "TDataFrame.hxx"
 TFile file(fileName);
 // build dataframe like you would build a TTreeReader
 // the branch list is used as fallback whenever none is specified
 TDataFrame d(treeName, &file, {"b1","b2"});
 // apply a cut and save the state of the chain
-auto& filteredDF = d.Filter(myBigCut);
+auto filteredDF = d.Filter(myBigCut);
 // plot branch "b1" at this point of the chain. no need to specify the type if it's a common one, e.g. double
 auto h1 = filteredDF.Histo("b1");
 // create a new branch "v" with a vector extracted from a complex object (only for filtered entries)
 // from now on we can refer to "v" as if it was a real branch
-auto& newBranchDF = filtered.AddBranch("v", [](const Obj& o) { return o.getVector(); }, {"obj"});
+auto newBranchDF = filtered.AddBranch("v", [](const Obj& o) { return o.getVector(); }, {"obj"});
 // apply a cut and fill a histogram with "v"
 // since "v" is a vector type we loop over it and fill the histogram with its elements
 // since "v" is a vector of a common type, say double, we do not need to specify the type
@@ -100,5 +99,6 @@ h3->Draw("SAME");
 * `TDataFrame.hxx`: functional chain implementation
 * `tests/*.cxx`: example usage/tutorial/unit testing
 * `notebooks/*.ipynb`: ipython notebook with same content as %.C
+* `benchmarks/*.cxx`: snippets useful to evaluate `TDataFrame`'s performance
 * `test_checker/check.sh`: minimal test checker
 * `README.md`: this document
