@@ -238,12 +238,10 @@ void CheckTmpBranch(const std::string& branchName, TTree *treePtr)
    }
 }
 
-template <typename F>
-const BranchList &PickBranchList(F f, const BranchList &bl, const BranchList &defBl)
+const BranchList &PickBranchList(unsigned int nArgs, const BranchList &bl, const BranchList &defBl)
 {
    // return local BranchList or default BranchList according to which one
    // should be used
-   auto nArgs = TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
    bool useDefBl = false;
    if (nArgs != bl.size()) {
       if (bl.size() == 0 && nArgs == defBl.size()) {
@@ -611,7 +609,8 @@ public:
    {
       ROOT::Internal::CheckFilter(f);
       const BranchList &defBl = fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
-      const BranchList &actualBl = Internal::PickBranchList(f, bl, defBl);
+      auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
+      const BranchList &actualBl = Internal::PickBranchList(nArgs, bl, defBl);
       using DFF_t = Details::TDataFrameFilter<F, Proxied>;
       auto FilterPtr = std::make_shared<DFF_t> (f, actualBl, fProxiedPtr);
       TDataFrameInterface<DFF_t> tdf_f(FilterPtr);
@@ -626,7 +625,8 @@ public:
       auto df = fProxiedPtr->GetDataFrame().lock();
       ROOT::Internal::CheckTmpBranch(name, df->GetTree());
       const BranchList &defBl = df->GetDefaultBranches();
-      const BranchList &actualBl = Internal::PickBranchList(expression, bl, defBl);
+      auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
+      const BranchList &actualBl = Internal::PickBranchList(nArgs, bl, defBl);
       using DFB_t = Details::TDataFrameBranch<F, Proxied>;
       auto BranchPtr = std::make_shared<DFB_t>(name, expression, actualBl, fProxiedPtr);
       TDataFrameInterface<DFB_t> tdf_b(BranchPtr);
@@ -639,7 +639,8 @@ public:
    {
       GetDataFrameChecked();
       const BranchList &defBl= fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
-      const BranchList &actualBl = Internal::PickBranchList(f, bl, defBl);
+      auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
+      const BranchList &actualBl = Internal::PickBranchList(nArgs, bl, defBl);
       namespace IU = Internal::TDFTraitsUtils;
       using ArgTypes_t = typename IU::TFunctionTraits<decltype(f)>::ArgTypesNoDecay_t;
       using RetType_t = typename IU::TFunctionTraits<decltype(f)>::RetType_t;
