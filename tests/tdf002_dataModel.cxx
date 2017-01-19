@@ -21,7 +21,6 @@
 #include "TFile.h"
 #include "TH1F.h"
 #include "TTree.h"
-#include "ROOT/TSeq.hxx"
 
 #include "TDataFrame.hxx"
 
@@ -40,11 +39,11 @@ void fill_tree(const char* filename, const char* treeName) {
    const double M = 0.13957;  // set pi+ mass
    TRandom3 R(1);
 
-   for (auto i : ROOT::TSeqI(50)) {
+   for (int i = 0; i < 50; ++i) {
       auto nPart = R.Poisson(15);
       tracks.clear();
       tracks.reserve(nPart);
-      for (auto j : ROOT::TSeqI(nPart)) {
+      for (int j = 0; j < nPart; ++j) {
          double px = R.Gaus(0,10);
          double py = R.Gaus(0,10);
          double pt = sqrt(px*px +py*py);

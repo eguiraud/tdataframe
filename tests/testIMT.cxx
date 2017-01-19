@@ -5,7 +5,6 @@
 #include "TMath.h"
 #include "TTree.h"
 #include "TRandom3.h"
-#include "ROOT/TSeq.hxx"
 #include "TSystem.h"
 #include <cassert>
 #include <iostream>
@@ -34,7 +33,7 @@ void getTracks(unsigned int mu, FourVectors& tracks) {
    auto nPart = R.Poisson(mu);
    tracks.clear();
    tracks.reserve(nPart);
-   for (auto j : ROOT::TSeqI(nPart)) {
+   for (int i = 0; i < nPart; ++i) {
       double px = R.Gaus(0,10);
       double py = R.Gaus(0,10);
       double pt = sqrt(px*px +py*py);
@@ -67,7 +66,7 @@ void FillTree(const char* filename, const char* treeName) {
    t.Branch("sl", &sl);
 
    int nevts = 16000;
-   for(auto i : ROOT::TSeqI(nevts)) {
+   for(int i = 0; i < nevts; ++i) {
       b1 = i;
       b2 = i*i;
 

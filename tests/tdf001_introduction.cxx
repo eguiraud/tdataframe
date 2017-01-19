@@ -17,7 +17,6 @@
 #include "TFile.h"
 #include "TH1F.h"
 #include "TTree.h"
-#include "ROOT/TSeq.hxx"
 
 #include "TDataFrame.hxx"
 
@@ -30,7 +29,7 @@ void fill_tree(const char* filename, const char* treeName) {
    int b2;
    t.Branch("b1", &b1);
    t.Branch("b2", &b2);
-   for(auto i : ROOT::TSeqI(10)) {
+   for(int i = 0; i < 10; ++i) {
       b1 = i;
       b2 = i*i;
       t.Fill();
