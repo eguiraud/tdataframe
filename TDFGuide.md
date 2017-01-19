@@ -12,11 +12,11 @@ It aims to provide high level features (i.e. less typing, more expressivity, abs
 ## Crash course
 `TDataFrame` is built with a *modular* and *flexible* workflow in mind, summarized as follows:
 
-1. **build a data-frame** object by specifying your data-set
-2. **apply a series of transformations** to your data
-    1. **filter** (e.g. apply some cuts) or
-    2. create a **temporary branch** (e.g. store the result of a complex operation)
-3. **apply actions** to the transformed data to produce results (e.g. to fill a histogram)
+1.  **build a data-frame** object by specifying your data-set
+2.  **apply a series of transformations** to your data
+    1.  **filter** (e.g. apply some cuts) or
+    2.  create a **temporary branch** (e.g. store the result of a complex operation)
+3.  **apply actions** to the transformed data to produce results (e.g. to fill a histogram)
 
 ### Filling a histogram
 The simplest usage looks like this (just a fill):
@@ -68,7 +68,7 @@ auto h2 = d.Filter(std::not_fn(isPos), {"theta"}).Histo("pt"); // std::not_fn (c
 h1->Draw();       // event loop is run once here
 h2->Draw("SAME"); // no need to run the event loop again
 ```
-`TDataFrame` is smart enough to execute all above actions by **running the even-loop only once**. The trick is that actions are not executed at the moment they are called, but they are **delayed** until the moment one of their results is accessed through the smart pointer. At that time, the even loop is triggered and *all* results are filled simultaneously.<br>
+`TDataFrame` is smart enough to execute all above actions by **running the event-loop only once**. The trick is that actions are not executed at the moment they are called, but they are **delayed** until the moment one of their results is accessed through the smart pointer. At that time, the even loop is triggered and *all* results are filled simultaneously.<br>
 It is therefore good practice to declare all your filters and actions *before* accessing their results, allowing `TDataFrame` to "loop once and fill everything".
 
 ### Going parallel
@@ -160,7 +160,7 @@ You see how we created one `double` variable for each thread in the pool, and la
 
 ### Call graphs (storing and reusing sets of transformations)
 **Sets of transformations can be stored as variables** and reused multiple times to create **call graphs** in which several paths of filtering/creation of branches are executed simultaneously; we often refer to this as "storing the state of the chain".<br>
-This feature can be used, for example, to create a temporary branch once and use it in several subsequent filters or actions, or to apply a strict filter to the data-set _before_ executing several other transformations and actions, effectively reducing the amount of events processed.
+This feature can be used, for example, to create a temporary branch once and use it in several subsequent filters or actions, or to apply a strict filter to the data-set *before* executing several other transformations and actions, effectively reducing the amount of events processed.
 
 Let's try to make this clearer with a commented example:
 ```c++
@@ -195,14 +195,14 @@ An optional string parameter `filterName` can be specified to `Filter`, defining
 
 ### Temporary branches
 Temporary branches are created by invoking `AddBranch(name, f, branchList)`. As usual, `f` can be any callable object (function, lambda expression, functor class...); it takes the values of the branches listed in `branchList` (a list of strings) as parameters, in the same order as they are listed in `branchList`. `f` must return the value that will be assigned to the temporary branch.<br>
-A new variable is created, accessible as if it was contained in a real `TTree` branch named `name` from subsequent transformations/actions. 
+A new variable is created, accessible as if it was contained in a real `TTree` branch named `name` from subsequent transformations/actions.
 
 Use cases include:
-- caching the results of complex calculations for easy and efficient multiple access
-- extraction of quantities of interest from complex objects
-- branch aliasing, i.e. changing the name of a branch
+-   caching the results of complex calculations for easy and efficient multiple access
+-   extraction of quantities of interest from complex objects
+-   branch aliasing, i.e. changing the name of a branch
 
-Temporary branch values can be persistified by saving them to a new `TTree` using the `Snapshot` action. 
+Temporary branch values can be persistified by saving them to a new `TTree` using the `Snapshot` action.
 An exception is thrown if the `name` of the new branch is already in use for another branch in the `TTree`.
 
 ## Actions
@@ -218,8 +218,8 @@ The default range is, of course, beginning to end.
 Here is a quick overview of what actions are present and what they do. Each one is described in more detail in the reference guide.<br>
 In the following, whenever we say an action "returns" something, we always mean it returns a smart pointer to it. Also note that all actions are only executed for events that pass all preceding filters.
 
-Delayed actions | Description | Notes
-:---------------------: | :---------------: | :--------:
+ Delayed actions | Description | Notes
+:--------------: | :---------: | :-----:
 Accumulate | Execute a function with signature `R(R,T)` on each entry. T is a branch, R is an accumulator. Return the final value of the accumulator | coming soon |
 Count | Return the number of events processed | |
 Get | Build a collection of values of a branch | |
@@ -236,7 +236,7 @@ Snapshot | Save a set of branches and temporary branches to disk, return a new `
 Tail  | Take a number `n`, run and pretty-print the last `n` events that passed all filters | coming soon |
 
 ## Multi-thread execution
-As pointed out before in this document, `TDataFrame` can transparently perform multi-thread event loops to speed up the execution of its actions. Users only have to call `ROOT::EnableImplicitMT()` _before_ constructing the `TDataFrame` object to indicate that it should take advantage of a pool of worker threads. **Each worker thread processes a distinct subset of entries**, and their partial results are merged before returning the final values to the user.
+As pointed out before in this document, `TDataFrame` can transparently perform multi-thread event loops to speed up the execution of its actions. Users only have to call `ROOT::EnableImplicitMT()` *before* constructing the `TDataFrame` object to indicate that it should take advantage of a pool of worker threads. **Each worker thread processes a distinct subset of entries**, and their partial results are merged before returning the final values to the user.
 
 ### Thread safety
 `Filter` and `AddBranch` transformations should be inherently thread-safe: they have no side-effects and are not dependent on global state.
