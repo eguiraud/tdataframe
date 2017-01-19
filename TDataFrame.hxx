@@ -637,16 +637,21 @@ public:
    template <typename F>
    void Foreach(F f, const BranchList &bl = {})
    {
-      GetDataFrameChecked();
-      const BranchList &defBl= fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
-      auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
-      const BranchList &actualBl = Internal::PickBranchList(nArgs, bl, defBl);
       namespace IU = Internal::TDFTraitsUtils;
       using ArgTypes_t = typename IU::TFunctionTraits<decltype(f)>::ArgTypesNoDecay_t;
       using RetType_t = typename IU::TFunctionTraits<decltype(f)>::RetType_t;
       auto fWithSlot = IU::AddSlotParameter<RetType_t>(f, ArgTypes_t());
-      using DFA_t  = Internal::TDataFrameAction<decltype(fWithSlot), Proxied>;
-      Book(std::make_shared<DFA_t>(fWithSlot, actualBl, fProxiedPtr));
+      ForeachSlot(fWithSlot, bl);
+   }
+
+   template<typename F>
+   void ForeachSlot(F f, const BranchList &bl = {}) {
+      GetDataFrameChecked();
+      const BranchList &defBl= fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
+      auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
+      const BranchList &actualBl = Internal::PickBranchList(nArgs-1, bl, defBl);
+      using DFA_t  = Internal::TDataFrameAction<decltype(f), Proxied>;
+      Book(std::make_shared<DFA_t>(f, actualBl, fProxiedPtr));
       fProxiedPtr->GetDataFrame().lock()->Run();
    }
 
