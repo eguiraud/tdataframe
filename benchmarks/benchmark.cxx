@@ -102,24 +102,24 @@ void RunTDataFrame(TFile& f){
       return pts;
       };
 
-   auto getPxPyPz = [](const FourVectors& tracks) {
-      std::vector<double> pxpypz;
-      pxpypz.reserve(tracks.size());
-      for (auto& t:tracks)
-         pxpypz.emplace_back(t.Px() + t.Py() + t.Pz());
-      return pxpypz;
-      };
+//   auto getPxPyPz = [](const FourVectors& tracks) {
+//      std::vector<double> pxpypz;
+//      pxpypz.reserve(tracks.size());
+//      for (auto& t:tracks)
+//         pxpypz.emplace_back(t.Px() + t.Py() + t.Pz());
+//      return pxpypz;
+//      };
 
    ROOT::TDataFrame d(treeName, &f, {"tracks"});
    auto ad = d.AddBranch("tracks_n", [](const FourVectors& tracks){return (int)tracks.size();})
                .Filter([](int tracks_n){return tracks_n > 2;}, {"tracks_n"})
-               .AddBranch("tracks_pts", getPt)
-               .AddBranch("tracks_pxpypz", getPxPyPz);
-   auto trN = ad.Histo("tracks_n");
+               .AddBranch("tracks_pts", getPt);
+//               .AddBranch("tracks_pxpypz", getPxPyPz);
+   auto trPt = ad.Histo("tracks_pts");
 //    auto trPts = ad.Histo("tracks_pts");
 //    auto trPxPyPx = ad.Histo("tracks_pxpypz");
 //    *trPxPyPx;
-   *trN;
+   *trPt;
 }
 
 void LoopRunTDataFrame(int n, TFile& f) {
