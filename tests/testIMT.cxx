@@ -8,10 +8,11 @@
 #include "TSystem.h"
 #include <cassert>
 #include <iostream>
+#include <chrono>
 
 // A simple class to measure time.
 class TimerRAII{
-   using timePoint = std::chrono::time_point<std::chrono::system_clock>;
+   using timePoint = std::chrono::high_resolution_clock::time_point;
 public:
    TimerRAII():fStart(std::chrono::high_resolution_clock::now()){};
    ~TimerRAII(){
@@ -19,7 +20,7 @@ public:
       std::cout << "\nElapsed time: " << deltaT.count() << "s\n";
    }
 private:
-   timePoint fStart;
+   const timePoint fStart;
 };
 
 
