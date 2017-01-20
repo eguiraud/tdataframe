@@ -149,6 +149,7 @@ class TDataFrameImpl;
 template <typename T>
 class TActionResultPtr {
    using SPT_t = std::shared_ptr<T> ;
+   using SPTDFI_t = std::shared_ptr<Details::TDataFrameImpl>;
    using WPTDFI_t = std::weak_ptr<Details::TDataFrameImpl>;
    using ShrdPtrBool_t = std::shared_ptr<bool>;
    friend class Details::TDataFrameImpl;
@@ -157,9 +158,9 @@ class TActionResultPtr {
    WPTDFI_t fFirstData;
    SPT_t fObjPtr;
    void TriggerRun();
-   TActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, WPTDFI_t firstData)
+   TActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
       : fFirstData(firstData), fObjPtr(objPtr), fReadiness(readiness) { }
-   static TActionResultPtr<T> MakeActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, WPTDFI_t firstData)
+   static TActionResultPtr<T> MakeActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
    {
       return TActionResultPtr(objPtr, readiness, firstData);
    }
@@ -606,13 +607,14 @@ public:
    TDataFrameInterface<Details::TDataFrameFilter<F, Proxied>> Filter(F f, const BranchList &bl = {})
    {
       ROOT::Internal::CheckFilter(f);
-      const BranchList &defBl = fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
+      auto df = GetDataFrameChecked();
+      const BranchList &defBl = df->GetDefaultBranches();
       auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
       const BranchList &actualBl = Internal::PickBranchList(nArgs, bl, defBl);
       using DFF_t = Details::TDataFrameFilter<F, Proxied>;
       auto FilterPtr = std::make_shared<DFF_t> (f, actualBl, fProxiedPtr);
       TDataFrameInterface<DFF_t> tdf_f(FilterPtr);
-      Book(FilterPtr);
+      df->Book(FilterPtr);
       return tdf_f;
    }
 
@@ -620,7 +622,7 @@ public:
    TDataFrameInterface<Details::TDataFrameBranch<F, Proxied>> AddBranch(const std::string &name, F expression,
                                                                         const BranchList &bl = {})
    {
-      auto df = fProxiedPtr->GetDataFrame().lock();
+      auto df = GetDataFrameChecked();
       ROOT::Internal::CheckTmpBranch(name, df->GetTree());
       const BranchList &defBl = df->GetDefaultBranches();
       auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
@@ -628,7 +630,7 @@ public:
       using DFB_t = Details::TDataFrameBranch<F, Proxied>;
       auto BranchPtr = std::make_shared<DFB_t>(name, expression, actualBl, fProxiedPtr);
       TDataFrameInterface<DFB_t> tdf_b(BranchPtr);
-      Book(BranchPtr);
+      df->Book(BranchPtr);
       return tdf_b;
    }
 
@@ -644,18 +646,18 @@ public:
 
    template<typename F>
    void ForeachSlot(F f, const BranchList &bl = {}) {
-      GetDataFrameChecked();
-      const BranchList &defBl= fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
+      auto df = GetDataFrameChecked();
+      const BranchList &defBl= df->GetDefaultBranches();
       auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
       const BranchList &actualBl = Internal::PickBranchList(nArgs-1, bl, defBl);
       using DFA_t  = Internal::TDataFrameAction<decltype(f), Proxied>;
-      Book(std::make_shared<DFA_t>(f, actualBl, fProxiedPtr));
-      fProxiedPtr->GetDataFrame().lock()->Run();
+      df->Book(std::make_shared<DFA_t>(f, actualBl, fProxiedPtr));
+      df->Run();
    }
 
    TActionResultPtr<unsigned int> Count()
    {
-      auto df = GetDataFrameChecked().lock();
+      auto df = GetDataFrameChecked();
       unsigned int nSlots = df->GetNSlots();
       auto c = df->MakeActionResultPtr(std::make_shared<unsigned int>(0));
       auto cPtr = c.GetUnchecked();
@@ -663,14 +665,14 @@ public:
       auto countAction = [cOp](unsigned int slot) mutable { cOp->Exec(slot); };
       BranchList bl = {};
       using DFA_t = Internal::TDataFrameAction<decltype(countAction), Proxied>;
-      Book(std::shared_ptr<DFA_t>(new DFA_t(countAction, bl, fProxiedPtr)));
+      df->Book(std::shared_ptr<DFA_t>(new DFA_t(countAction, bl, fProxiedPtr)));
       return c;
    }
 
    template <typename T, typename COLL = std::list<T>>
    TActionResultPtr<COLL> Get(const std::string &branchName = "")
    {
-      auto df = GetDataFrameChecked().lock();
+      auto df = GetDataFrameChecked();
       unsigned int nSlots = df->GetNSlots();
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "get the values of the branch");
@@ -680,7 +682,7 @@ public:
       auto getAction = [getOp] (unsigned int slot , const T &v) mutable { getOp->Exec(v, slot); };
       BranchList bl = {theBranchName};
       using DFA_t = Internal::TDataFrameAction<decltype(getAction), Proxied>;
-      Book(std::shared_ptr<DFA_t>(new DFA_t(getAction, bl, fProxiedPtr)));
+      df->Book(std::shared_ptr<DFA_t>(new DFA_t(getAction, bl, fProxiedPtr)));
       return values;
    }
 
@@ -737,10 +739,10 @@ private:
    TDataFrameInterface(std::shared_ptr<Proxied> proxied) : fProxiedPtr(proxied) {}
 
    /// Get the TDataFrameImpl if reachable. If not, throw.
-   std::weak_ptr<Details::TDataFrameImpl> GetDataFrameChecked()
+   std::shared_ptr<Details::TDataFrameImpl> GetDataFrameChecked()
    {
-      auto df = fProxiedPtr->GetDataFrame();
-      if (df.expired()) {
+      auto df = fProxiedPtr->GetDataFrame().lock();
+      if (!df) {
          throw std::runtime_error("The main TDataFrame is not reachable: did it go out of scope?");
       }
       return df;
@@ -750,7 +752,8 @@ private:
    {
       if (theBranchName.empty()) {
          // Try the default branch if possible
-         const BranchList &defBl = fProxiedPtr->GetDataFrame().lock()->GetDefaultBranches();
+         auto df = GetDataFrameChecked();
+         const BranchList &defBl = df->GetDefaultBranches();
          if (defBl.size() == 1) {
             theBranchName = defBl[0];
          } else {
@@ -775,8 +778,9 @@ private:
          auto fillLambda = [fillOp](unsigned int slot, const BranchType &v) mutable { fillOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(fillLambda), Proxied>;
-         thisFrame->Book(std::make_shared<DFA_t>(fillLambda, bl, thisFrame->fProxiedPtr));
-         return thisFrame->GetDataFrameChecked().lock()->MakeActionResultPtr(h);
+         auto df = thisFrame->GetDataFrameChecked();
+         df->Book(std::make_shared<DFA_t>(fillLambda, bl, thisFrame->fProxiedPtr));
+         return df->MakeActionResultPtr(h);
       }
    };
 
@@ -789,8 +793,9 @@ private:
          auto minOpLambda = [minOp](unsigned int slot, const BranchType &v) mutable { minOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(minOpLambda), Proxied>;
-         thisFrame->Book(std::make_shared<DFA_t>(minOpLambda, bl, thisFrame->fProxiedPtr));
-         return thisFrame->GetDataFrameChecked().lock()->MakeActionResultPtr(minV);
+         auto df = thisFrame->GetDataFrameChecked();
+         df->Book(std::make_shared<DFA_t>(minOpLambda, bl, thisFrame->fProxiedPtr));
+         return df->MakeActionResultPtr(minV);
       }
    };
 
@@ -803,8 +808,9 @@ private:
          auto maxOpLambda = [maxOp](unsigned int slot, const BranchType &v) mutable { maxOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(maxOpLambda), Proxied>;
-         thisFrame->Book(std::make_shared<DFA_t>(maxOpLambda, bl, thisFrame->fProxiedPtr));
-         return thisFrame->GetDataFrameChecked().lock()->MakeActionResultPtr(maxV);
+         auto df = thisFrame->GetDataFrameChecked();
+         df->Book(std::make_shared<DFA_t>(maxOpLambda, bl, thisFrame->fProxiedPtr));
+         return df->MakeActionResultPtr(maxV);
       }
    };
 
@@ -817,8 +823,9 @@ private:
          auto meanOpLambda = [meanOp](unsigned int slot, const BranchType &v) mutable { meanOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(meanOpLambda), Proxied>;
-         thisFrame->Book(std::make_shared<DFA_t>(meanOpLambda, bl, thisFrame->fProxiedPtr));
-         return thisFrame->GetDataFrameChecked().lock()->MakeActionResultPtr(meanV);
+         auto df = thisFrame->GetDataFrameChecked();
+         df->Book(std::make_shared<DFA_t>(meanOpLambda, bl, thisFrame->fProxiedPtr));
+         return df->MakeActionResultPtr(meanV);
       }
    };
 
@@ -831,12 +838,12 @@ private:
       using TT_t = decltype(this);
       const auto at = ActionType;
       auto df = GetDataFrameChecked();
-      auto tree = (TTree *)df.lock()->GetDirectory()->Get(df.lock()->GetTreeName().c_str());
+      auto tree = static_cast<TTree*>(df->GetDirectory()->Get(df->GetTreeName().c_str()));
       auto branch = tree->GetBranch(theBranchName.c_str());
-      unsigned int nSlots = df.lock()->GetNSlots();
+      unsigned int nSlots = df->GetNSlots();
       if (!branch) {
          // temporary branch
-         const auto &type_id = df.lock()->GetBookedBranch(theBranchName).GetTypeId();
+         const auto &type_id = df->GetBookedBranch(theBranchName).GetTypeId();
          if (type_id == typeid(Char_t)) {
             return SimpleAction<Char_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          } else if (type_id == typeid(int)) {
@@ -886,12 +893,6 @@ private:
       return SimpleAction<BranchType, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
    }
 
-   template <typename T>
-   void Book(std::shared_ptr<T> ptr)
-   {
-      fProxiedPtr->Book(ptr);
-   }
-
    std::shared_ptr<Proxied> fProxiedPtr;
 };
 
@@ -928,9 +929,9 @@ class TDataFrameBranch final : public TDataFrameBranchBase {
    std::vector<int> fLastCheckedEntry = {-1};
 
 public:
-   TDataFrameBranch(const std::string &name, F expression, const BranchList &bl, std::weak_ptr<PrevData> pd)
-      : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd.lock()->GetTmpBranches()),
-        fFirstData(pd.lock()->GetDataFrame()), fPrevData(pd.lock().get())
+   TDataFrameBranch(const std::string &name, F expression, const BranchList &bl, std::shared_ptr<PrevData> pd)
+      : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd->GetTmpBranches()),
+        fFirstData(pd->GetDataFrame()), fPrevData(pd.get())
    {
       fTmpBranches.emplace_back(name);
    }
@@ -958,9 +959,6 @@ public:
    }
 
    const std::type_info &GetTypeId() const { return typeid(RetType_t); }
-
-   template <typename T>
-   void Book(std::shared_ptr<T> ptr);
 
    void CreateSlots(unsigned int nSlots)
    {
@@ -1012,9 +1010,9 @@ class TDataFrameFilter final : public TDataFrameFilterBase {
    std::vector<int> fLastResult = {true}; // std::vector<bool> cannot be used in a MT context safely
 
 public:
-   TDataFrameFilter(FilterF f, const BranchList &bl, std::weak_ptr<PrevDataFrame> pd)
-      : fFilter(f), fBranches(bl), fTmpBranches(pd.lock()->GetTmpBranches()), fPrevData(pd.lock().get()),
-        fFirstData(pd.lock()->GetDataFrame()) { }
+   TDataFrameFilter(FilterF f, const BranchList &bl, std::shared_ptr<PrevDataFrame> pd)
+      : fFilter(f), fBranches(bl), fTmpBranches(pd->GetTmpBranches()), fPrevData(pd.get()),
+        fFirstData(pd->GetDataFrame()) { }
 
    std::weak_ptr<TDataFrameImpl> GetDataFrame() const { return fFirstData; }
 
@@ -1055,9 +1053,6 @@ public:
       fReaderValues[slot] = Internal::BuildReaderValues(r, fBranches, fTmpBranches, BranchTypes_t(), TypeInd_t());
    }
 
-   template <typename T>
-   void Book(std::shared_ptr<T> ptr);
-
    void CreateSlots(unsigned int nSlots)
    {
       fReaderValues.resize(nSlots);
@@ -1080,6 +1075,9 @@ class TDataFrameImpl {
    // and they must copy an empty list from the base TDataFrameImpl
    const BranchList fTmpBranches;
    unsigned int fNSlots;
+   // TDataFrameInterface<TDataFrameImpl> calls SetFirstData to set this to a
+   // weak pointer to the TDataFrameImpl object itself
+   // so subsequent objects in the chain can call GetDataFrame on TDataFrameImpl
    std::weak_ptr<TDataFrameImpl> fFirstData;
 
 public:
@@ -1214,7 +1212,9 @@ public:
    TActionResultPtr<T> MakeActionResultPtr(std::shared_ptr<T> r)
    {
       auto readiness = std::make_shared<bool>(false);
-      auto resPtr = TActionResultPtr<T>::MakeActionResultPtr(r, readiness, fFirstData);
+      // since fFirstData is a weak_ptr to `this`, we are sure the lock succeeds
+      auto df = fFirstData.lock();
+      auto resPtr = TActionResultPtr<T>::MakeActionResultPtr(r, readiness, df);
       fResPtrsReadiness.emplace_back(readiness);
       return resPtr;
    }
@@ -1244,27 +1244,12 @@ TDataFrameInterface<T>::TDataFrameInterface(TTree &tree, const BranchList &defau
 template<typename T>
 void TActionResultPtr<T>::TriggerRun()
 {
-   fFirstData.lock()->Run();
+   auto df = fFirstData.lock();
+   if (!df) {
+      throw std::runtime_error("The main TDataFrame is not reachable: did it go out of scope?");
+   }
+   df->Run();
 }
-
-namespace Details {
-// N.B. these methods could be unified and put in TDataFrameInterface, if I
-// could find a way to make it compile
-template <typename F, typename PrevData>
-template <typename T>
-void TDataFrameFilter<F, PrevData>::Book(std::shared_ptr<T> ptr)
-{
-   fFirstData.lock()->Book(ptr);
-}
-
-template <typename F, typename PrevData>
-template <typename T>
-void TDataFrameBranch<F, PrevData>::Book(std::shared_ptr<T> ptr)
-{
-   fFirstData.lock()->Book(ptr);
-}
-
-} // end NS Details
 
 namespace Internal {
 template <int S, typename T>
