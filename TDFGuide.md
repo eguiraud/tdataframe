@@ -133,12 +133,12 @@ dataFrame.Histo<Object_t>("myObject"); // OK, "myObject" is deduced to be of typ
 
 `Foreach(f, branchList)` takes a function `f` (lambda expression, functor...) and a list of branches, and executes `f` on those branches for each event. The function passed must return nothing (i.e. `void`). It can be used to perform actions that are not already available in the interface. For example, the following snippet evaluates the root mean square of branch "b":
 ```c++
-// single-thread evaluation of RMS of branch "b" using Foreach
-double rms = 0;
-unsigned int count = 0;
+// Single-thread evaluation of RMS of branch "b" using Foreach
+double sumSq = 0.;
+unsigned int n = 0;
 ROOT::TDataFrame d("bTree", bFilePtr);
-d.Foreach([&rms, &count](double b) { ++count; rms += b*b; }, { "b" });
-std::cout << "rms of b: " << std::sqrt(rms / count) << std::endl;
+d.Foreach([&sumSq, &n](double b) { ++n; sumSq += b*b; }, {"b"});
+std::cout << "rms of b: " << std::sqrt(sumSq / n) << std::endl;
 ```
 When executing on multiple threads, users are responsible for the thread-safety of the expression passed to `Foreach`.
 The code above would need to employ mutexes or other synchronization mechanisms to ensure non-concurrent writing of `rms`; but this is probably too much head-scratch for such a simple operation.
@@ -148,13 +148,13 @@ Enter `ForeachSlot`: this is an alternative version of `Foreach` for which the f
 // Thread-safe evaluation of RMS of branch "b" using ForeachSlot
 ROOT::EnableImplicitMT();
 unsigned int nSlots = ROOT::GetImplicitMTPoolSize();
-std::vector<double> rmss(nSlots, 0.);
-std::vector<unsigned int> counts(nSlots, 0);
+std::vector<double> sumSqs(nSlots, 0.);
+std::vector<unsigned int> ns(nSlots, 0);
 ROOT::TDataFrame d("bTree", bFilePtr);
-d.ForeachSlot([&rmss, &counts](unsigned int slot, double b) { rmss[slot] += b*b; counts[slot] += 1; }, {"b"});
-double rms = std::accumulate(rmss.begin(), rmss.end(), 0); // sum all rmss
-unsigned int count = std::accumulate(counts.begin(), counts.end(), 0); // sum all counts
-std::cout << "rms of b: " << std::sqrt(rms / count) << std::endl;
+d.ForeachSlot([&sumSqs, &ns](unsigned int slot, double b) { sumSqs[slot] += b*b; ns[slot] += 1; }, {"b"});
+double sumSq = std::accumulate(sumSqs.begin(), sumSqs.end(), 0.); // sum all squares
+unsigned int n = std::accumulate(ns.begin(), ns.end(), 0); // sum all counts
+std::cout << "rms of b: " << std::sqrt(sumSq / n) << std::endl;
 ```
 You see how we created one `double` variable for each thread in the pool, and later merged their results via `std::accumulate`.
 
