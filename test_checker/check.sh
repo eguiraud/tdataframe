@@ -12,7 +12,7 @@ popd > /dev/null
 
 echo "checking executables..."
 FILES=(test_misc testIMT tdf001_introduction tdf002_dataModel regression_multipletriggerrun \
-       test_functiontraits regression_zeroentries test_branchoverwrite)
+       test_functiontraits regression_zeroentries test_branchoverwrite test_foreach)
 RETCODE=0
 for F in ${FILES[@]}; do
    ../tests/$F | diff $F.out -

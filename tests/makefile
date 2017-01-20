@@ -1,5 +1,6 @@
 TESTS:=tdf001_introduction tdf002_dataModel test_misc regression_multipletriggerrun \
-test_par testIMT test_functiontraits regression_zeroentries test_branchoverwrite
+test_par testIMT test_functiontraits regression_zeroentries test_branchoverwrite \
+test_foreach
 
 all: $(TESTS)
 
