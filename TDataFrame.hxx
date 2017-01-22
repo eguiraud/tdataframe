@@ -271,7 +271,7 @@ T &GetBranchValue(TVBPtr_t &readerValues, unsigned int slot, int entry, const st
                   std::weak_ptr<Details::TDataFrameImpl> df);
 
 template <typename F, typename PrevDataFrame>
-class TDataFrameAction : public TDataFrameActionBase {
+class TDataFrameAction final : public TDataFrameActionBase {
    using BranchTypes_t = typename TDFTraitsUtils::TRemoveFirst<typename TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t>::Types_t;
    using TypeInd_t = typename TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
 
@@ -906,7 +906,7 @@ public:
 using TmpBranchBasePtr_t = std::shared_ptr<TDataFrameBranchBase>;
 
 template <typename F, typename PrevData>
-class TDataFrameBranch : public TDataFrameBranchBase {
+class TDataFrameBranch final : public TDataFrameBranchBase {
    using BranchTypes_t = typename Internal
    ::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t;
    using TypeInd_t = typename Internal::TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
@@ -993,7 +993,7 @@ using FilterBasePtr_t = std::shared_ptr<TDataFrameFilterBase>;
 using FilterBaseVec_t = std::vector<FilterBasePtr_t>;
 
 template <typename FilterF, typename PrevDataFrame>
-class TDataFrameFilter : public TDataFrameFilterBase {
+class TDataFrameFilter final : public TDataFrameFilterBase {
    using BranchTypes_t = typename Internal::TDFTraitsUtils::TFunctionTraits<FilterF>::ArgTypes_t;
    using TypeInd_t = typename Internal::TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
 
