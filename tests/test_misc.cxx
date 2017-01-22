@@ -234,6 +234,22 @@ int main() {
       std::cout << "Exception catched: the dataframe went out of scope when booking an action." << std::endl;
    }
 
+   // TEST 13: an action result pointer goes out of scope and the chain is ran
+   ROOT::TDataFrame d11(treeName, &f);
+   auto d11c = d.Count();
+   {
+      auto d11c2 = d.Count();
+      auto d11c4 = d.Count();
+      auto d11c3 = d.Count();
+      auto d11c5 = d.Count();
+      auto d11c6 = d.Count();
+      auto d11c7 = d.Count();
+      auto d11c8 = d.Count();
+      auto d11c9 = d.Count();
+      auto d11c10 = d.Count();
+      auto d11c11 = d.Count();
+   }
+   std::cout << "Count with action pointers which went out of scope: " << *d11c << std::endl;
 
    return 0;
 }

@@ -145,31 +145,29 @@ namespace Details {
 class TDataFrameImpl;
 }
 
-// Smart pointer for the return type of actions
-class TActionResultPtrBase {
-   friend class Details::TDataFrameImpl;
-   std::weak_ptr<Details::TDataFrameImpl> fFirstData;
-   std::shared_ptr<bool> fReadyPtr = std::make_shared<bool>(false);
-   void SetReady() { *fReadyPtr = true; }
-protected:
-   bool IsReady() { return *fReadyPtr; }
-   void TriggerRun();
-
-public:
-   TActionResultPtrBase(std::weak_ptr<Details::TDataFrameImpl> firstData);
-   virtual ~TActionResultPtrBase() {}
-};
-
+/// Smart pointer for the return type of actions
 template <typename T>
-class TActionResultPtr : public TActionResultPtrBase {
-   std::shared_ptr<T> fObjPtr;
+class TActionResultPtr {
+   using SPT_t = std::shared_ptr<T> ;
+   using WPTDFI_t = std::weak_ptr<Details::TDataFrameImpl>;
+   using ShrdPtrBool_t = std::shared_ptr<bool>;
+   friend class Details::TDataFrameImpl;
 
+   ShrdPtrBool_t fReadiness = std::make_shared<bool>(false);
+   WPTDFI_t fFirstData;
+   SPT_t fObjPtr;
+   void TriggerRun();
+   TActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, WPTDFI_t firstData)
+      : fFirstData(firstData), fObjPtr(objPtr), fReadiness(readiness) { }
+   static TActionResultPtr<T> MakeActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, WPTDFI_t firstData)
+   {
+      return TActionResultPtr(objPtr, readiness, firstData);
+   }
 public:
-   TActionResultPtr(std::shared_ptr<T> objPtr, std::weak_ptr<Details::TDataFrameImpl> firstData)
-      : TActionResultPtrBase(firstData), fObjPtr(objPtr) { }
+   TActionResultPtr() = delete;
    T *Get()
    {
-      if (!IsReady()) TriggerRun();
+      if (!*fReadiness) TriggerRun();
       return fObjPtr.get();
    }
    T &operator*() { return *Get(); }
@@ -652,9 +650,9 @@ public:
 
    TActionResultPtr<unsigned int> Count()
    {
-      auto df = GetDataFrameChecked();
-      unsigned int nSlots = df.lock()->GetNSlots();
-      TActionResultPtr<unsigned int> c (std::make_shared<unsigned int>(0), df);
+      auto df = GetDataFrameChecked().lock();
+      unsigned int nSlots = df->GetNSlots();
+      auto c = df->MakeActionResultPtr(std::make_shared<unsigned int>(0));
       auto cPtr = c.GetUnchecked();
       auto cOp = std::make_shared<Internal::Operations::CountOperation>(cPtr, nSlots);
       auto countAction = [cOp](unsigned int slot) mutable { cOp->Exec(slot); };
@@ -667,12 +665,12 @@ public:
    template <typename T, typename COLL = std::list<T>>
    TActionResultPtr<COLL> Get(const std::string &branchName = "")
    {
-      auto df = GetDataFrameChecked();
-      unsigned int nSlots = df.lock()->GetNSlots();
+      auto df = GetDataFrameChecked().lock();
+      unsigned int nSlots = df->GetNSlots();
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "get the values of the branch");
       auto valuesPtr = std::make_shared<COLL>();
-      TActionResultPtr<COLL> values(valuesPtr, df);
+      auto values = df->MakeActionResultPtr(valuesPtr);
       auto getOp = std::make_shared<Internal::Operations::GetOperation<T,COLL>>(valuesPtr, nSlots);
       auto getAction = [getOp] (unsigned int slot , const T &v) mutable { getOp->Exec(v, slot); };
       BranchList bl = {theBranchName};
@@ -773,7 +771,7 @@ private:
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(fillLambda), Proxied>;
          thisFrame->Book(std::make_shared<DFA_t>(fillLambda, bl, thisFrame->fProxiedPtr));
-         return TActionResultPtr<TH1F>(h, thisFrame->GetDataFrameChecked());
+         return thisFrame->GetDataFrameChecked().lock()->MakeActionResultPtr(h);
       }
    };
 
@@ -787,7 +785,7 @@ private:
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(minOpLambda), Proxied>;
          thisFrame->Book(std::make_shared<DFA_t>(minOpLambda, bl, thisFrame->fProxiedPtr));
-         return TActionResultPtr<ActionResultType>(minV, thisFrame->GetDataFrameChecked());
+         return thisFrame->GetDataFrameChecked().lock()->MakeActionResultPtr(minV);
       }
    };
 
@@ -801,7 +799,7 @@ private:
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(maxOpLambda), Proxied>;
          thisFrame->Book(std::make_shared<DFA_t>(maxOpLambda, bl, thisFrame->fProxiedPtr));
-         return TActionResultPtr<ActionResultType>(maxV, thisFrame->GetDataFrameChecked());
+         return thisFrame->GetDataFrameChecked().lock()->MakeActionResultPtr(maxV);
       }
    };
 
@@ -815,7 +813,7 @@ private:
          BranchList bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(meanOpLambda), Proxied>;
          thisFrame->Book(std::make_shared<DFA_t>(meanOpLambda, bl, thisFrame->fProxiedPtr));
-         return TActionResultPtr<ActionResultType>(meanV, thisFrame->GetDataFrameChecked());
+         return thisFrame->GetDataFrameChecked().lock()->MakeActionResultPtr(meanV);
       }
    };
 
@@ -1068,7 +1066,7 @@ class TDataFrameImpl {
    Internal::ActionBaseVec_t fBookedActions;
    Details::FilterBaseVec_t fBookedFilters;
    std::map<std::string, TmpBranchBasePtr_t> fBookedBranches;
-   std::vector<TActionResultPtrBase *> fActionResultsPtrs;
+   std::vector<std::shared_ptr<bool>> fResPtrsReadiness;
    std::string fTreeName;
    TDirectory *fDirPtr = nullptr;
    TTree *fTree = nullptr;
@@ -1143,10 +1141,10 @@ public:
 
       // forget actions and "detach" the action result pointers marking them ready and forget them too
       fBookedActions.clear();
-      for (auto aptr : fActionResultsPtrs) {
-         aptr->SetReady();
+      for (auto readiness : fResPtrsReadiness) {
+         *readiness.get() = true;
       }
-      fActionResultsPtrs.clear();
+      fResPtrsReadiness.clear();
    }
 
    // build reader values for all actions, filters and branches
@@ -1205,10 +1203,16 @@ public:
    // dummy call, end of recursive chain of calls
    bool CheckFilters(int, unsigned int) { return true; }
 
-   // register a TActionResultPtr
-   void RegisterActionResult(TActionResultPtrBase *ptr) { fActionResultsPtrs.emplace_back(ptr); }
-
    unsigned int GetNSlots() {return fNSlots;}
+
+   template<typename T>
+   TActionResultPtr<T> MakeActionResultPtr(std::shared_ptr<T> r)
+   {
+      auto readiness = std::make_shared<bool>(false);
+      auto resPtr = TActionResultPtr<T>::MakeActionResultPtr(r, readiness, fFirstData);
+      fResPtrsReadiness.emplace_back(readiness);
+      return resPtr;
+   }
 };
 
 } // end NS Details
@@ -1232,14 +1236,10 @@ TDataFrameInterface<T>::TDataFrameInterface(TTree &tree, const BranchList &defau
    fProxiedPtr->SetFirstData(fProxiedPtr);
 }
 
-void TActionResultPtrBase::TriggerRun()
+template<typename T>
+void TActionResultPtr<T>::TriggerRun()
 {
    fFirstData.lock()->Run();
-}
-
-TActionResultPtrBase::TActionResultPtrBase(std::weak_ptr<Details::TDataFrameImpl> firstData) : fFirstData(firstData)
-{
-   firstData.lock()->RegisterActionResult(this);
 }
 
 namespace Details {
