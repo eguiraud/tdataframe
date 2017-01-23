@@ -421,6 +421,43 @@ public:
    }
 };
 
+
+class FillTOOperation {
+   TThreadedObject<TH1F> fTo;
+
+public:
+
+   FillTOOperation(std::shared_ptr<TH1F> h, unsigned int nSlots) : fTo(*h)
+   {
+      fTo.SetAtSlot(0, h);
+      // Initialise all other slots
+      for (unsigned int i = 0 ; i < nSlots; ++i) {
+         fTo.GetAtSlot(i);
+      }
+   }
+
+   template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
+   void Exec(T v, unsigned int slot)
+   {
+      fTo.GetAtSlotUnchecked(slot)->Fill(v);
+   }
+
+   template <typename T, typename std::enable_if<TIsContainer<T>::fgValue, int>::type = 0>
+   void Exec(const T &vs, unsigned int slot)
+   {
+      auto thisSlotH = fTo.GetAtSlotUnchecked(slot);
+      for (auto& v : vs) {
+         thisSlotH->Fill(v); // TODO: Can be optimised in case T == vector<double>
+      }
+   }
+
+   ~FillTOOperation()
+   {
+      fTo.Merge();
+   }
+
+};
+
 // note: changes to this class should probably be replicated in its partial
 // specialization below
 template<typename T, typename COLL>
@@ -784,12 +821,22 @@ private:
          // and therefore of the TDataFrameAction that contains it: merging of results
          // from different threads is performed in the operation's destructor, at the
          // moment when the TDataFrameAction is deleted by TDataFrameImpl
-         auto fillOp = std::make_shared<Internal::Operations::FillOperation>(h, nSlots);
-         auto fillLambda = [fillOp](unsigned int slot, const BranchType &v) mutable { fillOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
-         using DFA_t = Internal::TDataFrameAction<decltype(fillLambda), Proxied>;
          auto df = thisFrame->GetDataFrameChecked();
-         df->Book(std::make_shared<DFA_t>(fillLambda, bl, thisFrame->fProxiedPtr));
+         auto xaxis = h->GetXaxis();
+         auto hasAxisLimits = !(xaxis->GetXmin() == 0. && xaxis->GetXmax() == 0.);
+
+         if (hasAxisLimits) {
+            auto fillTOOp = std::make_shared<Internal::Operations::FillTOOperation>(h, nSlots);
+            auto fillLambda = [fillTOOp](unsigned int slot, const BranchType &v) mutable { fillTOOp->Exec(v, slot); };
+            using DFA_t = Internal::TDataFrameAction<decltype(fillLambda), Proxied>;
+            df->Book(std::make_shared<DFA_t>(fillLambda, bl, thisFrame->fProxiedPtr));
+         } else {
+            auto fillOp = std::make_shared<Internal::Operations::FillOperation>(h, nSlots);
+            auto fillLambda = [fillOp](unsigned int slot, const BranchType &v) mutable { fillOp->Exec(v, slot); };
+            using DFA_t = Internal::TDataFrameAction<decltype(fillLambda), Proxied>;
+            df->Book(std::make_shared<DFA_t>(fillLambda, bl, thisFrame->fProxiedPtr));
+         }
          return df->MakeActionResultPtr(h);
       }
    };
