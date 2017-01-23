@@ -250,20 +250,21 @@ In the following, whenever we say an action "returns" something, we always mean 
 
  Delayed actions | Description | Notes
 :--------------: | :---------: | :-----:
-Accumulate | Execute a function with signature `R(R,T)` on each entry. T is a branch, R is an accumulator. Return the final value of the accumulator | coming soon |
-Count | Return the number of events processed | |
-Get | Build a collection of values of a branch | |
-Histo | Fill a histogram with the values of a branch that passed all filters | |
-Max | Return the maximum of processed branch values  | |
-Mean | Return the mean of processed branch values | |
-Min | Return the minimum of processed branch values | |
-Reduce | Execute a function with signature `T(T,T)` on each entry. Processed branch values are reduced (e.g. summed, merged) using this function. Return the final result of the reduction operation | coming soon |
-**Instant actions** | **Description** | **Notes** |
-Foreach | Execute a user-defined function on each entry. Users are responsible for the thread-safety of this lambda when executing with implicit multi-threading enabled | |
-ForeachSlot | Same as `Foreach`, but the user-defined function must take an extra `unsigned int slot` as its first parameter. `slot` will take a different value, `0` to `nThreads - 1`, for each thread of execution. This is meant as a helper in writing thread-safe `Foreach` actions when using `TDataFrame` after `ROOT::EnableImplicitMT()`. `ForeachSlot` works just as well with single-thread execution: in that case `slot` will always be `0`. ||
-Head | Take a number `n`, run and pretty-print the first `n` events that passed all filters | coming soon |
-Snapshot | Save a set of branches and temporary branches to disk, return a new `TDataFrame` that works on the skimmed, augmented or otherwise processed data | coming soon |
-Tail  | Take a number `n`, run and pretty-print the last `n` events that passed all filters | coming soon |
+Accumulate | Execute a function with signature `R(R,T)` on each entry. T is a branch, R is an accumulator. Return the final value of the accumulator | coming soon
+Count | Return the number of events processed |
+Get | Build a collection of values of a branch |
+Histo | Fill a histogram with the values of a branch that passed all filters |
+Max | Return the maximum of processed branch values  |
+Mean | Return the mean of processed branch values |
+Min | Return the minimum of processed branch values |
+Reduce | Execute a function with signature `T(T,T)` on each entry. Processed branch values are reduced (e.g. summed, merged) using this function. Return the final result of the reduction operation | coming soon
+Sum | Return the sum of processed branch values | coming soon
+**Instant actions** | **Description** | **Notes**
+Foreach | Execute a user-defined function on each entry. Users are responsible for the thread-safety of this lambda when executing with implicit multi-threading enabled |
+ForeachSlot | Same as `Foreach`, but the user-defined function must take an extra `unsigned int slot` as its first parameter. `slot` will take a different value, `0` to `nThreads - 1`, for each thread of execution. This is meant as a helper in writing thread-safe `Foreach` actions when using `TDataFrame` after `ROOT::EnableImplicitMT()`. `ForeachSlot` works just as well with single-thread execution: in that case `slot` will always be `0`. |
+Head | Take a number `n`, run and pretty-print the first `n` events that passed all filters | coming soon
+Snapshot | Save a set of branches and temporary branches to disk, return a new `TDataFrame` that works on the skimmed, augmented or otherwise processed data | coming soon
+Tail  | Take a number `n`, run and pretty-print the last `n` events that passed all filters | coming soon
 
 ## Multi-thread execution
 As pointed out before in this document, `TDataFrame` can transparently perform multi-thread event loops to speed up the execution of its actions. Users only have to call `ROOT::EnableImplicitMT()` *before* constructing the `TDataFrame` object to indicate that it should take advantage of a pool of worker threads. **Each worker thread processes a distinct subset of entries**, and their partial results are merged before returning the final values to the user.
