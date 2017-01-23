@@ -3,21 +3,54 @@
 It aims to provide high level features (i.e. less typing, more expressivity, abstraction of complex operations) while transparently performing low level optimisations such as multi-thread parallelisation and caching.
 
 ## Table of Contents
+[Introduction](#introduction)<br>
 [Crash course](#crash-course)<br>
 [More features](#more-features)<br>
 [Transformations](#transformations)<br>
 [Actions](#actions)<br>
 [Multi-thread execution](#multi-thread-execution)
 
-## Crash course
+## Introduction
+`TDataFrame` offers a high-level, declarative syntax for running ROOT data analyses
+both interactively and as compiled code, in the form of functional chains.
+Users state sequences of operations to be performed on the data, and the framework takes care
+of low-level details such as I/O and parallelisation. `TDataFrame` provides an interface that
+is nice to write and easy to read to perform most common operations required by ROOT analyses in a transparently optimized way; at the same time, building blocks to fully control the event-loop
+and build new or more complex features are available.
+
 `TDataFrame` is built with a *modular* and *flexible* workflow in mind, summarized as follows:
 
 1.  **build a data-frame** object by specifying your data-set
 2.  **apply a series of transformations** to your data
     1.  **filter** (e.g. apply some cuts) or
     2.  create a **temporary branch** (e.g. store the result of a complex operation)
-3.  **apply actions** to the transformed data to produce results (e.g. to fill a histogram)
+3.  **apply actions** to the transformed data to produce results (e.g. fill a histogram)
 
+What was:
+```c++
+// TTreeReader: cut and operate on selected variables
+#include "TTreeReader.h"
+#include "TTreeReaderValue.h"
+TTreeReader reader(tree, file);
+TTreeReaderValue<TypeA> a(reader, "A");
+TTreeReaderValue<TypeB> b(reader, "B");
+TTreeReaderValue<TypeC> c(reader, "C");
+while(reader.Next()) {
+   if(IsGoodEvent(a, b, c))
+      DoStuff(a, b, c);
+}
+```
+becomes:
+```c++
+// TDataFrame: cut and operate on selected variables
+#include "ROOT/TDataFrame.hxx"
+ROOT::TDataFrame d(tree, file, {"A", "B", "C"});
+d.Filter(IsGoodEvent).Foreach(DoStuff);
+```
+
+Keep reading to follow a five-minute [crash course](#crash-course) to `TDataFrame`, or jump to an overview of useful [features](#more-features), or a more in-depth explanation of [transformations](#transformations), [actions](#actions) and [parallelism](#multi-thread-execution).
+
+## Crash course
 ### Filling a histogram
 The simplest usage looks like this (just a fill):
 ```c++
@@ -77,9 +110,6 @@ Finally, let's say we would like to run the previous examples in parallel on sev
 ROOT::EnableImplicitMT();
 ```
 Simple as that, enjoy your speed-up.
-
-### What next?
-Keep reading to discover [more features](#more-features), or jump to a more in-depth explanation of [transformations](#transformations), [actions](#actions) or [parallelism](#multi-thread-execution).
 
 ## More features
 Here is a list of the most important features that have been omitted in the "Crash course" for brevity's sake.
