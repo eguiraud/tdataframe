@@ -764,7 +764,9 @@ private:
          } else {
             std::string msg("No branch in input to ");
             msg += actionNameForErr;
-            msg += " and more than one default branch.";
+            msg += " and default branch list has size ";
+            msg += std::to_string(defBl.size());
+            msg += ", need 1";
             throw std::runtime_error(msg);
          }
       }
