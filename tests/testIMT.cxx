@@ -170,7 +170,7 @@ void tests(int argc = 1, char** argv = nullptr) {
       auto ad = d.AddBranch("tracks_n", [](const FourVectors& tracks){return (int)tracks.size();})
                  .Filter([](int tracks_n){return tracks_n > 2;}, {"tracks_n"})
                  .AddBranch("tracks_pts", getPt);
-      auto trN = ad.Histo("tracks_n");
+      auto trN = ad.Histo("tracks_n", 100 , -.5, 99.5);
       auto trPts = ad.Histo("tracks_pts");
 
       std::cout << "Histo tracks number entries and mean " << trN->GetEntries()
