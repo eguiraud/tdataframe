@@ -350,6 +350,7 @@ public:
 };
 
 class FillOperation {
+   // this sets a total initial size of 16 MB for the buffers (can increase)
    static constexpr unsigned int fgTotalBufSize = 2097152;
    using BufEl_t = double;
    using Buf_t = std::vector<BufEl_t>;
@@ -420,6 +421,8 @@ public:
    }
 };
 
+// note: changes to this class should probably be replicated in its partial
+// specialization below
 template<typename T, typename COLL>
 class GetOperation {
    std::vector<std::shared_ptr<COLL>> fColls;
@@ -456,6 +459,8 @@ public:
    }
 };
 
+// note: changes to this class should probably be replicated in its unspecialized
+// declaration above
 template<typename T>
 class GetOperation<T, std::vector<T>> {
    std::vector<std::shared_ptr<std::vector<T>>> fColls;
@@ -773,7 +778,10 @@ private:
       static TActionResultPtr<TH1F> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                  std::shared_ptr<TH1F> h, unsigned int nSlots)
       {
-         // Here we pass the shared_ptr and not the pointer
+         // we use a shared_ptr so that the operation has the same scope of the lambda
+         // and therefore of the TDataFrameAction that contains it: merging of results
+         // from different threads is performed in the operation's destructor, at the
+         // moment when the TDataFrameAction is deleted by TDataFrameImpl
          auto fillOp = std::make_shared<Internal::Operations::FillOperation>(h, nSlots);
          auto fillLambda = [fillOp](unsigned int slot, const BranchType &v) mutable { fillOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
@@ -789,6 +797,7 @@ private:
       static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                              std::shared_ptr<ActionResultType> minV, unsigned int nSlots)
       {
+         // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
          auto minOp = std::make_shared<Internal::Operations::MinOperation>(minV.get(), nSlots);
          auto minOpLambda = [minOp](unsigned int slot, const BranchType &v) mutable { minOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
@@ -804,6 +813,7 @@ private:
       static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                              std::shared_ptr<ActionResultType> maxV, unsigned int nSlots)
       {
+         // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
          auto maxOp = std::make_shared<Internal::Operations::MaxOperation>(maxV.get(), nSlots);
          auto maxOpLambda = [maxOp](unsigned int slot, const BranchType &v) mutable { maxOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
@@ -819,6 +829,7 @@ private:
       static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                              std::shared_ptr<ActionResultType> meanV, unsigned int nSlots)
       {
+         // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
          auto meanOp = std::make_shared<Internal::Operations::MeanOperation>(meanV.get(), nSlots);
          auto meanOpLambda = [meanOp](unsigned int slot, const BranchType &v) mutable { meanOp->Exec(v, slot); };
          BranchList bl = {theBranchName};
