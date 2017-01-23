@@ -26,27 +26,59 @@ and build new or more complex features are available.
     2.  create a **temporary branch** (e.g. store the result of a complex operation)
 3.  **apply actions** to the transformed data to produce results (e.g. fill a histogram)
 
-What was:
-```c++
-// TTreeReader: cut and operate on selected variables
-#include "TTreeReader.h"
-#include "TTreeReaderValue.h"
-TTreeReader reader(tree, file);
-TTreeReaderValue<TypeA> a(reader, "A");
-TTreeReaderValue<TypeB> b(reader, "B");
-TTreeReaderValue<TypeC> c(reader, "C");
+<table>
+<tr>
+<td>
+<b>TTreeReader</b>
+</td>
+<td>
+<b>TDataFrame</b>
+</tr>
+<tr>
+<td>
+   <pre lang="c++">
+TTreeReader reader("myTree", file);
+TTreeReaderValue&lt;A_t&gt; a(reader, "A");
+TTreeReaderValue&lt;B_t&gt; b(reader, "B");
+TTreeReaderValue&lt;C_t&gt; c(reader, "C");
 while(reader.Next()) {
    if(IsGoodEvent(a, b, c))
       DoStuff(a, b, c);
-}
-```
-becomes:
-```c++
-// TDataFrame: cut and operate on selected variables
-#include "ROOT/TDataFrame.hxx"
-ROOT::TDataFrame d(tree, file, {"A", "B", "C"});
+} 
+   </pre>
+</td>
+<td>
+  <pre lang="c++">
+ROOT::TDataFrame d("myTree", file, {"A", "B", "C"});
 d.Filter(IsGoodEvent).Foreach(DoStuff);
-```
+  </pre>
+</td>
+</tr>
+<tr>
+<td>
+<b>TTree::Draw</b>
+</td>
+<td>
+<b>TDataFrame</b>
+</td>
+</tr>
+<tr>
+<td>
+<pre lang="c++">
+TTree *t = static_cast&lt;TTree*&gt;(
+   file->Get("myTree")
+);
+t->Draw("var", "var > 2");
+</pre>
+</td>
+<td>
+<pre lang="c++">
+ROOT::TDataFrame d("myTree", file, "var");
+d.Filter([](int v) { return v > 2; }).Histo();
+</pre>
+</td>
+</tr>
+</table>
 
 Keep reading to follow a five-minute [crash course](#crash-course) to `TDataFrame`, or jump to an overview of useful [features](#more-features), or a more in-depth explanation of [transformations](#transformations), [actions](#actions) and [parallelism](#multi-thread-execution).
 
