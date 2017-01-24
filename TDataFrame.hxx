@@ -643,7 +643,23 @@ class TDataFrameInterface {
 public:
    TDataFrameInterface(const std::string &treeName, TDirectory *dirPtr, const BranchVec &defaultBranches = {});
    TDataFrameInterface(TTree &tree, const BranchVec &defaultBranches = {});
-
+   
+   ////////////////////////////////////////////////////////////////////////////
+   /// Append a filter node at the point of the call graph corresponding to the
+   /// object this method is called on. f can be a function, a lambda expression,
+   /// a functor class, or any other callable object. It must return a bool
+   /// signalling whether the event has passed the selection (true) or not (false).
+   /// It must perform "read-only" actions on the branches,
+   /// and should not have side-effects (e.g. modification of an external or 
+   /// static variable) to ensure correct results when implicit multi-threading
+   /// is active.
+   /// 
+   /// TDataFrame only evaluates filters when necessary: if multiple filters
+   /// are chained one after another, they are executed in order and the first
+   /// one returning false causes the event to be discarded and triggers the
+   /// processing of the next entry. If multiple actions or transformations
+   /// depend on the same filter, that filter is not executed multiple times
+   /// for each entry: after the first access it simply serves a cached result.
    template <typename F>
    TDataFrameInterface<Details::TDataFrameFilter<F, Proxied>> Filter(F f, const BranchVec &bl = {})
    {
@@ -659,9 +675,29 @@ public:
       return tdf_f;
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Create a temporary branch that will be visible from all subsequent nodes
+   /// of the functional chain. Expression is only evaluated for entries that pass
+   /// all the preceding filters. f can be any callable object (function,
+   /// lambda expression, functor class...); it takes the values of the branches
+   /// listed in the BranchVec (an std::vector of strings) as parameters, in the
+   /// same order as they are listed in branchVec.
+   /// f must return the value that will be assigned to the temporary branch.
+   ///
+   /// A new variable is created called name, accessible as if it was contained
+   /// in the dataset from subsequent transformations/actions.
+   ///
+   /// Use cases include:
+   ///
+   /// * caching the results of complex calculations for easy and efficient multiple access
+   /// * extraction of quantities of interest from complex objects
+   /// * branch aliasing, i.e. changing the name of a branch
+   ///
+   /// An exception is thrown if the name of the new branch is already in use
+   /// for another branch in the TTree.
    template <typename F>
-   TDataFrameInterface<Details::TDataFrameBranch<F, Proxied>> AddBranch(const std::string &name, F expression,
-                                                                        const BranchVec &bl = {})
+   TDataFrameInterface<Details::TDataFrameBranch<F, Proxied>>
+   AddBranch(const std::string &name, F expression, const BranchVec &bl = {})
    {
       auto df = GetDataFrameChecked();
       ROOT::Internal::CheckTmpBranch(name, df->GetTree());
@@ -675,6 +711,10 @@ public:
       return tdf_b;
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Execute a user-defined function on each entry.
+   /// Users are responsible for the thread-safety of this lambda when executing
+   /// with implicit multi-threading enabled (i.e. ROOT::EnableImplicitMT).
    template <typename F>
    void Foreach(F f, const BranchVec &bl = {})
    {
@@ -685,6 +725,14 @@ public:
       ForeachSlot(fWithSlot, bl);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Same as `Foreach`, but the user-defined function takes an extra
+   /// `unsigned int slot` as its first parameter.
+   /// `slot` will take a different value, `0` to `nThreads - 1`, for each thread 
+   /// of execution. This is meant as a helper in writing thread-safe `Foreach`
+   /// actions when using `TDataFrame` after `ROOT::EnableImplicitMT()`.
+   /// `ForeachSlot` works just as well with single-thread execution: in that
+   /// case `slot` will always be `0`.
    template<typename F>
    void ForeachSlot(F f, const BranchVec &bl = {}) {
       auto df = GetDataFrameChecked();
@@ -696,6 +744,8 @@ public:
       df->Run();
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Return the number of entries processed.
    TActionResultPtr<unsigned int> Count()
    {
       auto df = GetDataFrameChecked();
@@ -710,6 +760,8 @@ public:
       return c;
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Build a collection of values of a branch.
    template <typename T, typename COLL = std::vector<T>>
    TActionResultPtr<COLL> Take(const std::string &branchName = "")
    {
@@ -727,6 +779,10 @@ public:
       return values;
    }
 
+   
+   ////////////////////////////////////////////////////////////////////////////
+   /// Fill a one-dimensional histogram with the values of a branch, for entries
+   /// that passed all preceding filters.
    template <typename T = Double_t>
    TActionResultPtr<TH1F> Histo(const std::string &branchName, const TH1F &model)
    {
@@ -736,6 +792,9 @@ public:
       return CreateAction<T, Internal::EActionType::kHisto1D>(theBranchName, h);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Fill a one-dimensional histogram with the values of a branch, for entries
+   /// that passed all preceding filters.
    template <typename T = Double_t>
    TActionResultPtr<TH1F> Histo(const std::string &branchName = "", int nBins = 128, Double_t minVal = 0.,
                                 Double_t maxVal = 0.)
@@ -749,6 +808,8 @@ public:
       return CreateAction<T, Internal::EActionType::kHisto1D>(theBranchName, h);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Return the minimum of processed branch values.
    template <typename T = Double_t>
    TActionResultPtr<Double_t> Min(const std::string &branchName = "")
    {
@@ -758,6 +819,8 @@ public:
       return CreateAction<T, Internal::EActionType::kMin>(theBranchName, minV);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Return the maximum of processed branch values.
    template <typename T = Double_t>
    TActionResultPtr<Double_t> Max(const std::string &branchName = "")
    {
@@ -767,6 +830,8 @@ public:
       return CreateAction<T, Internal::EActionType::kMax>(theBranchName, maxV);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// Return the mean of processed branch values.
    template <typename T = Double_t>
    TActionResultPtr<Double_t> Mean(const std::string &branchName = "")
    {
