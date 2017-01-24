@@ -28,7 +28,7 @@ int main() {
       auto mean = d.Mean();
       auto h = d.Histo();
       auto c = d.Count();
-      auto g = d.Get<int>();
+      auto g = d.Take<int>();
       int fc = 0;
       d.Foreach([&fc]() { ++fc; });
 
@@ -52,7 +52,7 @@ int main() {
       auto mean = d.Mean();
       auto h = d.Histo();
       auto c = d.Count();
-      auto g = d.Get<int>();
+      auto g = d.Take<int>();
       std::atomic_int fc(0);
       d.Foreach([&fc]() { ++fc; });
 

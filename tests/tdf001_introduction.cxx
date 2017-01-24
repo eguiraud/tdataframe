@@ -84,13 +84,13 @@ int tdf001_introduction() {
    std::cout << "The mean is always included between the min and the max: " 
              << *minVal << " <= " << *meanVal << " <= " << *maxVal << std::endl;
 
-   // ### `Get` action
-   // The `Get` action allows to retrieve all values of the variable stored in a 
+   // ### `Take` action
+   // The `Take` action allows to retrieve all values of the variable stored in a 
    // particular column that passed filters we specified. The values are stored
    // in a list by default, but other collections can be chosen.
    auto b1_cut = d.Filter(cutb1);
-   auto b1List = b1_cut.Get<double>();
-   auto b1Vec = b1_cut.Get<double, std::vector<double>>();
+   auto b1List = b1_cut.Take<double>();
+   auto b1Vec = b1_cut.Take<double, std::vector<double>>();
 
    std::cout << "Selected b1 entries" << std::endl;
    for(auto b1_entry : *b1List)

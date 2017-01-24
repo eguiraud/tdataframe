@@ -2,7 +2,7 @@
 
 echo "building test executables..."
 pushd ../tests > /dev/null
-make
+make -j4
 RES=$?
 if (( $RES > 0 )); then
    echo "error building tests"

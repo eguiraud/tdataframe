@@ -198,8 +198,8 @@ int main() {
                     for(auto& track: tracks)
                        sum += track.Pt();
                     return sum; });
-   auto b2List = dd9.Get<int>("b2");
-   auto ptsumVec = dd9.Get<double, std::vector<double>>("ptsum");
+   auto b2List = dd9.Take<int>("b2");
+   auto ptsumVec = dd9.Take<double, std::vector<double>>("ptsum");
 
    for (auto& v : *b2List) {
       std::cout << v << std::endl;

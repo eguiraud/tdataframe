@@ -183,7 +183,7 @@ void tests(int argc = 1, char** argv = nullptr) {
    {
       ROOT::TDataFrame d(treeName, &f);
 
-      auto double_list = d.Get<double/*, std::vector<double>*/>("b1");
+      auto double_list = d.Take<double/*, std::vector<double>*/>("b1");
       std::cout << "Get: size of list<double> " << double_list->size() << std::endl;
    }
 
@@ -191,7 +191,7 @@ void tests(int argc = 1, char** argv = nullptr) {
    {
       ROOT::TDataFrame d(treeName, &f);
 
-      auto double_list = d.Get<double, std::vector<double>>("b1");
+      auto double_list = d.Take<double, std::vector<double>>("b1");
       std::cout << "Get: size of list<double> " << double_list->size() << std::endl;
    }
 

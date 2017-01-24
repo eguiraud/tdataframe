@@ -460,10 +460,10 @@ public:
 // note: changes to this class should probably be replicated in its partial
 // specialization below
 template<typename T, typename COLL>
-class GetOperation {
+class TakeOperation {
    std::vector<std::shared_ptr<COLL>> fColls;
 public:
-   GetOperation(std::shared_ptr<COLL> resultColl, unsigned int nSlots)
+   TakeOperation(std::shared_ptr<COLL> resultColl, unsigned int nSlots)
    {
       fColls.emplace_back(resultColl);
       for (unsigned int i = 1; i < nSlots; ++i)
@@ -483,7 +483,7 @@ public:
       thisColl.insert(std::begin(thisColl), std::begin(vs), std::begin(vs));
    }
 
-   ~GetOperation()
+   ~TakeOperation()
    {
       auto rColl = fColls[0];
       for (unsigned int i = 1; i < fColls.size(); ++i) {
@@ -498,10 +498,10 @@ public:
 // note: changes to this class should probably be replicated in its unspecialized
 // declaration above
 template<typename T>
-class GetOperation<T, std::vector<T>> {
+class TakeOperation<T, std::vector<T>> {
    std::vector<std::shared_ptr<std::vector<T>>> fColls;
 public:
-   GetOperation(std::shared_ptr<std::vector<T>> resultColl, unsigned int nSlots)
+   TakeOperation(std::shared_ptr<std::vector<T>> resultColl, unsigned int nSlots)
    {
       fColls.emplace_back(resultColl);
       for (unsigned int i = 1; i < nSlots; ++i) {
@@ -524,7 +524,7 @@ public:
       thisColl->insert(std::begin(thisColl), std::begin(vs), std::begin(vs));
    }
 
-   ~GetOperation()
+   ~TakeOperation()
    {
       unsigned int totSize = 0;
       for (auto& coll : fColls) totSize += coll->size();
@@ -711,7 +711,7 @@ public:
    }
 
    template <typename T, typename COLL = std::vector<T>>
-   TActionResultPtr<COLL> Get(const std::string &branchName = "")
+   TActionResultPtr<COLL> Take(const std::string &branchName = "")
    {
       auto df = GetDataFrameChecked();
       unsigned int nSlots = df->GetNSlots();
@@ -719,7 +719,7 @@ public:
       GetDefaultBranchName(theBranchName, "get the values of the branch");
       auto valuesPtr = std::make_shared<COLL>();
       auto values = df->MakeActionResultPtr(valuesPtr);
-      auto getOp = std::make_shared<Internal::Operations::GetOperation<T,COLL>>(valuesPtr, nSlots);
+      auto getOp = std::make_shared<Internal::Operations::TakeOperation<T,COLL>>(valuesPtr, nSlots);
       auto getAction = [getOp] (unsigned int slot , const T &v) mutable { getOp->Exec(v, slot); };
       BranchVec bl = {theBranchName};
       using DFA_t = Internal::TDataFrameAction<decltype(getAction), Proxied>;
