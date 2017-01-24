@@ -8,7 +8,7 @@ auto myHisto = d.Histo("Branch_A"); // This happens in parallel!
 myHisto->Draw();
 ```
 
-Calculations are expressed in terms of a type-safe *functional chain of actions and transformations*, `TDataFrame` takes care of their execution. The implementation puts in place automatically several low level optimisations such as multi-thread parallelisation and caching.
+Calculations are expressed in terms of a type-safe *functional chain of actions and transformations*, `TDataFrame` takes care of their execution. The implementation automatically puts in place several low level optimisations such as multi-thread parallelisation and caching.
 
 ## Table of Contents
 [Introduction](#introduction)<br>
@@ -16,21 +16,21 @@ Calculations are expressed in terms of a type-safe *functional chain of actions 
 [More features](#more-features)<br>
 [Transformations](#transformations)<br>
 [Actions](#actions)<br>
-[Multi-thread execution](#multi-thread-execution)
+[Parallel execution](#parallel-execution)
 
 ## Introduction
 A pipeline of operations is described to be performed on the data, the framework takes care
 of the management of the loop over entries as well as low-level details such as I/O and parallelisation.
 `TDataFrame` provides an interface to perform most common operations required by ROOT analyses;
 at the same time, the users are not limited to those
-common operations: building blocks to trigger very custom calculations are available too.
+common operations: building blocks to trigger custom calculations are available too.
 
-`TDataFrame` is built with a *modular* and *flexible* workflow in mind, summarized as follows:
+`TDataFrame` is built with a *modular* and *flexible* workflow in mind, summarised as follows:
 
 1.  **build a data-frame** object by specifying your data-set
 2.  **apply a series of transformations** to your data
     1.  **filter** (e.g. apply some cuts) or
-    2.  create a **new branch** (e.g. make available an alias or the result of a non trivial operation invovling other branches)
+    2.  create a **new branch** (e.g. make available an alias or the result of a non trivial operation involving other branches)
 3.  **apply actions** to the transformed data to produce results (e.g. fill a histogram)
 
 <table>
@@ -91,7 +91,7 @@ Keep reading to follow a five-minute [crash course](#crash-course) to `TDataFram
 
 ## Crash course
 ### Filling a histogram
-Let's start from a very common operation: filling a histogram
+Let's start with a very common task: filling a histogram
 ```c++
 // Fill a TH1F with the "MET" branch
 ROOT::TDataFrame d("myTree", filePtr); // build a TDataFrame like you would build a TTreeReader
@@ -116,7 +116,7 @@ std::cout << *c << std::endl;
 `Filter` takes a function (a lambda in this example, but it can be any kind of function or even a functor class) and a list of branch names. The filter function is applied to the specified branches for each event; it is required to return a `bool` which signals whether the event passes the filter (`true`) or not (`false`). You can think of your data as "flowing" through the chain of calls, being transformed, filtered and finally used to perform actions. Multiple `Filter` calls can be chained one after another.
 
 ### Creating a temporary branch
-Let's now consider the case in which "myTree" is a dataset which stores the three cartesian components of the momenta of some kind of particles. There is the need to study the transverse momentum of the psrticles, "pt". In order to be able to work on the "pt" variable, we can create a new column in the dataset with the `AddBranch` transformation:
+Let's now consider the case in which "myTree" is a dataset which stores the three cartesian components of the momenta of some kind of particles. There is the need to study the transverse momentum of the particles, "pt". In order to be able to work on the "pt" variable, we can create a new column in the dataset with the `AddBranch` transformation:
 ```c++
 auto ptCut = [](double x) { return x > 25.; };
 
@@ -198,7 +198,7 @@ C++ is a statically typed language: all types must be known at compile-time. Thi
 // here b1 is deduced to be `int` and b2 to be `double`
 dataFrame.Filter([](int x, double y) { return x > 0 && y < 0.; }, {"b1", "b2"});
 ```
-If we specify an incorrect type for one of the branches, an exception with an informative message will be thrown at runtime, when the branch value is actually read from the `TTree` and `TDataFrame` implementation allows to detect that there is a type mismatch. The same would happen if we swapped the order of "b1" and "b2" in the branch list passed to `Filter`.
+If we specify an incorrect type for one of the branches, an exception with an informative message will be thrown at runtime, when the branch value is actually read from the `TTree`: the implementation of `TDataFrame` allows the detection of type mismatches. The same would happen if we swapped the order of "b1" and "b2" in the branch list passed to `Filter`.
 
 Certain actions, on the other hand, do not take a function as argument (e.g. `Histo`), so we cannot deduce the type of the branch at compile-time. In this case **`TDataFrame` tries to guess the type of the branch**, trying out the most common ones and `std::vector` thereof. This is why we never needed to specify the branch types for all actions in the above snippets.
 
@@ -212,7 +212,7 @@ dataFrame.Histo<Object_t>("myObject"); // OK, "myObject" is deduced to be of typ
 ### Generic actions
 `TDataFrame` strives to offer a comprehensive set of standard actions that can be performed on each event. At the same time, it **allows users to execute arbitrary code (i.e. a generic action) inside the event loop** through the `Foreach` and `ForeachSlot` actions.
 
-`Foreach(f, branchList)` takes a function `f` (lambda expression, function, functor...) and a list of branches, and executes `f` on those branches for each event. The function passed must return nothing (i.e. `void`). It can be used to perform actions that are not already available in the interface. For example, the following snippet evaluates the root mean square of branch "b":
+`Foreach(f, branchList)` takes a function `f` (lambda expression, free function, functor...) and a list of branches, and executes `f` on those branches for each event. The function passed must return nothing (i.e. `void`). It can be used to perform actions that are not already available in the interface. For example, the following snippet evaluates the root mean square of branch "b":
 ```c++
 // Single-thread evaluation of RMS of branch "b" using Foreach
 double sumSq = 0.;
