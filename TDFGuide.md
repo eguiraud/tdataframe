@@ -35,14 +35,15 @@ common operations: building blocks to trigger custom calculations are available 
 
 <table>
 <tr>
-<td>
-<b>TTreeReader</b>
-</td>
-<td>
-<b>TDataFrame</b>
+   <td>
+      <b>TTreeReader</b>
+   </td>
+   <td>
+      <b>TDataFrame</b>
+   </td>
 </tr>
 <tr>
-<td>
+   <td>
    <pre lang="c++">
 TTreeReader reader("myTree", file);
 TTreeReaderValue&lt;A_t&gt; a(reader, "A");
@@ -53,37 +54,37 @@ while(reader.Next()) {
       DoStuff(a, b, c);
 }
    </pre>
-</td>
-<td>
-  <pre lang="c++">
+   </td>
+   <td>
+   <pre lang="c++">
 ROOT::TDataFrame d("myTree", file, {"A", "B", "C"});
 d.Filter(IsGoodEvent).Foreach(DoStuff);
-  </pre>
-</td>
+   </pre>
+   </td>
 </tr>
 <tr>
-<td>
-<b>TTree::Draw</b>
-</td>
-<td>
-<b>TDataFrame</b>
-</td>
+   <td>
+      <b>TTree::Draw</b>
+   </td>
+   <td>
+      <b>TDataFrame</b>
+   </td>
 </tr>
 <tr>
-<td>
-<pre lang="c++">
+   <td>
+   <pre lang="c++">
 TTree *t = static_cast&lt;TTree*&gt;(
    file->Get("myTree")
 );
 t->Draw("var", "var > 2");
-</pre>
-</td>
-<td>
-<pre lang="c++">
+   </pre>
+   </td>
+   <td>
+   <pre lang="c++">
 ROOT::TDataFrame d("myTree", file, "var");
 d.Filter([](int v) { return v > 2; }).Histo();
-</pre>
-</td>
+   </pre>
+   </td>
 </tr>
 </table>
 
@@ -298,20 +299,86 @@ Here is a quick overview of what actions are present and what they do. Each one 
 
 In the following, whenever we say an action "returns" something, we always mean it returns a smart pointer to it. Also note that all actions are only executed for events that pass all preceding filters.
 
- Delayed actions | Description | Notes
-:--------------: | :---------: | :-----:
+<table>
+<tr>
+   <td colspan="2" align="center">
+      <b>Delayed actions</b>
+   </td>
+</tr>
+<tr>
+   <td align="center">
+      Count
+   </td>
+   <td>
+      Return the number of events processed.
+   </td>
+<tr>
+   <td align="center">
+      Get
+   </td>
+   <td>
+      Build a collection of values of a branch.
+   </td>
+</tr>
+<tr>
+   <td align="center">
+      Histo
+   </td>
+   <td>
+      Fill a histogram with the values of a branch that passed all filters.
+   </td>
+</tr>
+<tr>
+   <td align="center">
+      Max
+   </td>
+   <td>
+      Return the maximum of processed branch values.
+   </td>
+</tr>
+<tr>
+   <td align="center">
+      Mean
+   </td>
+   <td>
+      Return the mean of processed branch values.
+   </td>
+</tr>
+<tr>
+   <td align="center">
+      Min
+   </td>
+   <td>
+      Return the minimum of processed branch values.
+   </td>
+</tr>
+<tr>
+   <td colspan="2" align="center">
+      <b>Instant actions</b>
+   </td>
+</tr>
+<tr>
+   <td align="center">
+      Foreach
+   </td>
+   <td>
+      Execute a user-defined function on each entry. Users are responsible for the thread-safety of this lambda when executing with implicit multi-threading enabled.
+   </td>
+</tr>
+<tr>
+   <td align="center">
+      ForeachSlot
+   </td>
+   <td>
+      Same as `Foreach`, but the user-defined function must take an extra `unsigned int slot` as its first parameter. `slot` will take a different value, `0` to `nThreads - 1`, for each thread of execution. This is meant as a helper in writing thread-safe `Foreach` actions when using `TDataFrame` after `ROOT::EnableImplicitMT()`. `ForeachSlot` works just as well with single-thread execution: in that case `slot` will always be `0`.
+   </td>
+</tr>
+</table>
+
+<!-- to be added at the correct row when supported -->
 <!-- Accumulate | Execute a function with signature `R(R,T)` on each entry. T is a branch, R is an accumulator. Return the final value of the accumulator | coming soon -->
-Count | Return the number of events processed |
-Get | Build a collection of values of a branch |
-Histo | Fill a histogram with the values of a branch that passed all filters |
-Max | Return the maximum of processed branch values  |
-Mean | Return the mean of processed branch values |
-Min | Return the minimum of processed branch values |
 <!-- Reduce | Execute a function with signature `T(T,T)` on each entry. Processed branch values are reduced (e.g. summed, merged) using this function. Return the final result of the reduction operation | coming soon -->
-Sum | Return the sum of processed branch values | coming soon
-**Instant actions** | **Description** | **Notes**
-Foreach | Execute a user-defined function on each entry. Users are responsible for the thread-safety of this lambda when executing with implicit multi-threading enabled |
-ForeachSlot | Same as `Foreach`, but the user-defined function must take an extra `unsigned int slot` as its first parameter. `slot` will take a different value, `0` to `nThreads - 1`, for each thread of execution. This is meant as a helper in writing thread-safe `Foreach` actions when using `TDataFrame` after `ROOT::EnableImplicitMT()`. `ForeachSlot` works just as well with single-thread execution: in that case `slot` will always be `0`. |
+<!-- Sum | Return the sum of processed branch values | coming soon -->
 <!-- Head | Take a number `n`, run and pretty-print the first `n` events that passed all filters | coming soon -->
 <!-- Snapshot | Save a set of branches and temporary branches to disk, return a new `TDataFrame` that works on the skimmed, augmented or otherwise processed data | coming soon -->
 <!-- Tail  | Take a number `n`, run and pretty-print the last `n` events that passed all filters | coming soon -->
