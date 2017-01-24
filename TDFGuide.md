@@ -30,7 +30,7 @@ common operations: building blocks to trigger custom calculations are available 
 1.  **build a data-frame** object by specifying your data-set
 2.  **apply a series of transformations** to your data
     1.  **filter** (e.g. apply some cuts) or
-    2.  create a **new branch** (e.g. make available an alias or the result of a non trivial operation involving other branches)
+    2.  create a **temporary branch** (e.g. make available an alias or the result of a non trivial operation involving other branches)
 3.  **apply actions** to the transformed data to produce results (e.g. fill a histogram)
 
 <table>
@@ -51,7 +51,7 @@ TTreeReaderValue&lt;C_t&gt; c(reader, "C");
 while(reader.Next()) {
    if(IsGoodEvent(a, b, c))
       DoStuff(a, b, c);
-} 
+}
    </pre>
 </td>
 <td>
@@ -100,7 +100,8 @@ h->Draw();
 ```
 The first line creates a `TDataFrame` associated to the `TTree` "myTree". This tree has a branch named "MET".
 
-`Histo` is an action; it returns a smart pointer (a `TActionResultPtr` to be precise) to a `TH1F` histogram filled with the `MET` of all events. The quantity stored in the branch must not necessarily be a single number per entry, it can also be a collection.
+`Histo` is an action; it returns a smart pointer (a `TActionResultPtr` to be precise) to a `TH1F` histogram filled with the `MET` of all events.
+If the quantity stored in the branch is a collection, the histogram is filled with its elements.
 
 There are many other possible [actions](#overview), and all their results are wrapped in smart pointers; we'll see why in a minute.
 
@@ -116,31 +117,22 @@ std::cout << *c << std::endl;
 `Filter` takes a function (a lambda in this example, but it can be any kind of function or even a functor class) and a list of branch names. The filter function is applied to the specified branches for each event; it is required to return a `bool` which signals whether the event passes the filter (`true`) or not (`false`). You can think of your data as "flowing" through the chain of calls, being transformed, filtered and finally used to perform actions. Multiple `Filter` calls can be chained one after another.
 
 ### Creating a temporary branch
-Let's now consider the case in which "myTree" is a dataset which stores the three cartesian components of the momenta of some kind of particles. There is the need to study the transverse momentum of the particles, "pt". In order to be able to work on the "pt" variable, we can create a new column in the dataset with the `AddBranch` transformation:
+Let's now consider the case in which "myTree" contains two quantities "x" and "y", but our analysis relies on a derived quantity `z = sqrt(x*x + y*y)`.
+Using the `AddBranch` transformation, we can create a new column in the data-set containin the variable "z":
 ```c++
-auto ptCut = [](double x) { return x > 25.; };
-
 auto sqrtSum = [](double x, double y) { return sqrt(x*x + y*y); };
-
-auto producePtColl = [](std::vector<float> px_v, std::vector<float> py_v,) {
-   auto len = px_v.size();
-   std::vector<float> pts(len);
-   for (int i : ROOT::TSeqI(len) {
-      pts[i] = sqrtSum(px_v[i], py_v[i]);
-   }
-   return pts;
-};
+auto zCut = [](double z) { return z > 0.; }
 
 ROOT::TDataFrame d(treeName, filePtr);
-auto ptMean = d.AddBranch("pt_v", producePtColl, {"px_v","py_v"})
-               .Filter(ptCut, {"pt_v"})
-               .Mean("pt_v");
-std::cout << *ptMean << std::endl;
+auto zMean = d.AddBranch("z", sqrtSum, {"x","y"})
+              .Filter(zCut, {"z"})
+              .Mean("z");
+std::cout << *zMean << std::endl;
 ```
-`AddBranch` creates the variable "pt_v" by applying `producePtColl` to "px_v" and "py_v". Later in the chain of calls we refer to variables created with `AddBranch` as if they were actual tree branches, but they are evaluated on the fly, once per event. As with filters, `AddBranch` calls can be chained with other transformations to create multiple temporary branches.
+`AddBranch` creates the variable "z" by applying `sqrtSum` to "x" and "y". Later in the chain of calls we refer to variables created with `AddBranch` as if they were actual tree branches, but they are evaluated on the fly, once per event. As with filters, `AddBranch` calls can be chained with other transformations to create multiple temporary branches.
 
 ### Executing multiple actions
-As a final example let us apply two different cuts on branch "MET" and fill two different histograms with the "pt_v" of the filtered events.
+As a final example let us apply two different cuts on branch "MET" and fill two different histograms with the "pt\_v" of the filtered events.
 You should be able to easily understand what's happening:
 ```c++
 // fill two histograms with the results of two opposite cuts
@@ -260,16 +252,16 @@ auto h2 = newBranchFiltered.Filter(cut1).Histo("vec");
 // apply a different cut and fill a new histogram
 auto h3 = newBranchFiltered.Filter(cut2).Histo("vec");
 // Inspect results
-std::cout << "Entries in h1: " << h1->GetEntries() << std::endl;
-h2->Draw(); // first access to an action result: RUN ONCE AND FILL EVERYTHING
-h3->Draw("SAME"); // event loop does not need to be run again now
+h2->Draw(); // first access to an action result: run event-loop!
+h3->Draw("SAME"); // event loop does not need to be run again here..
+std::cout << "Entries in h1: " << h1->GetEntries() << std::endl; // ..or here
 ```
 `TDataFrame` detects when several actions use the same filter or the same temporary branch, and **only evaluates each filter or temporary branch once per event**, regardless of how many times that result is used down the call graph. Objects read from each branch are **built once and never copied**, for maximum efficiency.
 When "upstream" filters are not passed, subsequent filters, temporary branch expressions and actions are not evaluated, so it might be advisable to put the strictest filters first in the chain.
 
 ## Transformations
 ### Filters
-A filter is defined through a call to `Filter(f, branchList)`. `f` can be a function, a lambda expression, a functor class, or any other callable object. It must return a `bool` signalling whether the event has passed the selection (`true`) or not (`false`). `f` is re-entrant. It must perform "read-only" actions on the branches, and should not have side-effects to ensure correct results when implicit multi-threading is active.
+A filter is defined through a call to `Filter(f, branchList)`. `f` can be a function, a lambda expression, a functor class, or any other callable object. It must return a `bool` signalling whether the event has passed the selection (`true`) or not (`false`). It must perform "read-only" actions on the branches, and should not have side-effects (e.g. modification of an external or static variable) to ensure correct results when implicit multi-threading is active.
 
 `TDataFrame` only evaluates filters when necessary: if multiple filters are chained one after another, they are executed in order and the first one returning `false` causes the event to be discarded and triggers the processing of the next entry. If multiple actions or transformations depend on the same filter, that filter is not executed multiple times for each entry: after the first access it simply serves a cached result.
 
@@ -287,8 +279,8 @@ Use cases include:
 -   branch aliasing, i.e. changing the name of a branch
 
 <!-- To be uncommented when the support is added
-Temporary branch values can be persistified by saving them to a new `TTree` using the `Snapshot` action.
-An exception is thrown if the `name` of the new branch is already in use for another branch in the `TTree`.-->
+Temporary branch values can be persistified by saving them to a new `TTree` using the `Snapshot` action.-->
+An exception is thrown if the `name` of the new branch is already in use for another branch in the `TTree`.
 
 ## Actions
 ### Instant and delayed actions
