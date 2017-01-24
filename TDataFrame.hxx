@@ -14,7 +14,6 @@
 #include <array>
 #include <map>
 #include <memory>
-#include <list>
 #include <string>
 #include <thread>
 #include <type_traits> // std::decay
@@ -138,7 +137,7 @@ struct TIsContainer {
 
 namespace ROOT {
 
-using BranchList = std::vector<std::string>;
+using BranchVec = std::vector<std::string>;
 
 // Fwd declarations
 namespace Details {
@@ -199,7 +198,7 @@ using TVBPtr_t = std::shared_ptr<TTreeReaderValueBase>;
 using TVBVec_t = std::vector<TVBPtr_t>;
 
 template <int... S, typename... BranchTypes>
-TVBVec_t BuildReaderValues(TTreeReader &r, const BranchList &bl, const BranchList &tmpbl,
+TVBVec_t BuildReaderValues(TTreeReader &r, const BranchVec &bl, const BranchVec &tmpbl,
                            TDFTraitsUtils::TTypeList<BranchTypes...>,
                            TDFTraitsUtils::TSeq<S...>)
 {
@@ -237,9 +236,9 @@ void CheckTmpBranch(const std::string& branchName, TTree *treePtr)
    }
 }
 
-const BranchList &PickBranchList(unsigned int nArgs, const BranchList &bl, const BranchList &defBl)
+const BranchVec &PickBranchVec(unsigned int nArgs, const BranchVec &bl, const BranchVec &defBl)
 {
-   // return local BranchList or default BranchList according to which one
+   // return local BranchVec or default BranchVec according to which one
    // should be used
    bool useDefBl = false;
    if (nArgs != bl.size()) {
@@ -277,14 +276,14 @@ class TDataFrameAction final : public TDataFrameActionBase {
    using TypeInd_t = typename TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
 
    F fAction;
-   const BranchList fBranches;
-   const BranchList fTmpBranches;
+   const BranchVec fBranches;
+   const BranchVec fTmpBranches;
    PrevDataFrame *fPrevData;
    std::weak_ptr<Details::TDataFrameImpl> fFirstData;
    std::vector<TVBVec_t> fReaderValues;
 
 public:
-   TDataFrameAction(F f, const BranchList &bl, std::weak_ptr<PrevDataFrame> pd)
+   TDataFrameAction(F f, const BranchVec &bl, std::weak_ptr<PrevDataFrame> pd)
       : fAction(f), fBranches(bl), fTmpBranches(pd.lock()->GetTmpBranches()), fPrevData(pd.lock().get()),
         fFirstData(pd.lock()->GetDataFrame()) { }
 
@@ -642,17 +641,17 @@ template <typename Proxied>
 class TDataFrameInterface {
    template<typename T> friend class TDataFrameInterface;
 public:
-   TDataFrameInterface(const std::string &treeName, TDirectory *dirPtr, const BranchList &defaultBranches = {});
-   TDataFrameInterface(TTree &tree, const BranchList &defaultBranches = {});
+   TDataFrameInterface(const std::string &treeName, TDirectory *dirPtr, const BranchVec &defaultBranches = {});
+   TDataFrameInterface(TTree &tree, const BranchVec &defaultBranches = {});
 
    template <typename F>
-   TDataFrameInterface<Details::TDataFrameFilter<F, Proxied>> Filter(F f, const BranchList &bl = {})
+   TDataFrameInterface<Details::TDataFrameFilter<F, Proxied>> Filter(F f, const BranchVec &bl = {})
    {
       ROOT::Internal::CheckFilter(f);
       auto df = GetDataFrameChecked();
-      const BranchList &defBl = df->GetDefaultBranches();
+      const BranchVec &defBl = df->GetDefaultBranches();
       auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
-      const BranchList &actualBl = Internal::PickBranchList(nArgs, bl, defBl);
+      const BranchVec &actualBl = Internal::PickBranchVec(nArgs, bl, defBl);
       using DFF_t = Details::TDataFrameFilter<F, Proxied>;
       auto FilterPtr = std::make_shared<DFF_t> (f, actualBl, fProxiedPtr);
       TDataFrameInterface<DFF_t> tdf_f(FilterPtr);
@@ -662,13 +661,13 @@ public:
 
    template <typename F>
    TDataFrameInterface<Details::TDataFrameBranch<F, Proxied>> AddBranch(const std::string &name, F expression,
-                                                                        const BranchList &bl = {})
+                                                                        const BranchVec &bl = {})
    {
       auto df = GetDataFrameChecked();
       ROOT::Internal::CheckTmpBranch(name, df->GetTree());
-      const BranchList &defBl = df->GetDefaultBranches();
+      const BranchVec &defBl = df->GetDefaultBranches();
       auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
-      const BranchList &actualBl = Internal::PickBranchList(nArgs, bl, defBl);
+      const BranchVec &actualBl = Internal::PickBranchVec(nArgs, bl, defBl);
       using DFB_t = Details::TDataFrameBranch<F, Proxied>;
       auto BranchPtr = std::make_shared<DFB_t>(name, expression, actualBl, fProxiedPtr);
       TDataFrameInterface<DFB_t> tdf_b(BranchPtr);
@@ -677,7 +676,7 @@ public:
    }
 
    template <typename F>
-   void Foreach(F f, const BranchList &bl = {})
+   void Foreach(F f, const BranchVec &bl = {})
    {
       namespace IU = Internal::TDFTraitsUtils;
       using ArgTypes_t = typename IU::TFunctionTraits<decltype(f)>::ArgTypesNoDecay_t;
@@ -687,11 +686,11 @@ public:
    }
 
    template<typename F>
-   void ForeachSlot(F f, const BranchList &bl = {}) {
+   void ForeachSlot(F f, const BranchVec &bl = {}) {
       auto df = GetDataFrameChecked();
-      const BranchList &defBl= df->GetDefaultBranches();
+      const BranchVec &defBl= df->GetDefaultBranches();
       auto nArgs = Internal::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t::fgSize;
-      const BranchList &actualBl = Internal::PickBranchList(nArgs-1, bl, defBl);
+      const BranchVec &actualBl = Internal::PickBranchVec(nArgs-1, bl, defBl);
       using DFA_t  = Internal::TDataFrameAction<decltype(f), Proxied>;
       df->Book(std::make_shared<DFA_t>(f, actualBl, fProxiedPtr));
       df->Run();
@@ -705,13 +704,13 @@ public:
       auto cPtr = c.GetUnchecked();
       auto cOp = std::make_shared<Internal::Operations::CountOperation>(cPtr, nSlots);
       auto countAction = [cOp](unsigned int slot) mutable { cOp->Exec(slot); };
-      BranchList bl = {};
+      BranchVec bl = {};
       using DFA_t = Internal::TDataFrameAction<decltype(countAction), Proxied>;
       df->Book(std::shared_ptr<DFA_t>(new DFA_t(countAction, bl, fProxiedPtr)));
       return c;
    }
 
-   template <typename T, typename COLL = std::list<T>>
+   template <typename T, typename COLL = std::vector<T>>
    TActionResultPtr<COLL> Get(const std::string &branchName = "")
    {
       auto df = GetDataFrameChecked();
@@ -722,7 +721,7 @@ public:
       auto values = df->MakeActionResultPtr(valuesPtr);
       auto getOp = std::make_shared<Internal::Operations::GetOperation<T,COLL>>(valuesPtr, nSlots);
       auto getAction = [getOp] (unsigned int slot , const T &v) mutable { getOp->Exec(v, slot); };
-      BranchList bl = {theBranchName};
+      BranchVec bl = {theBranchName};
       using DFA_t = Internal::TDataFrameAction<decltype(getAction), Proxied>;
       df->Book(std::shared_ptr<DFA_t>(new DFA_t(getAction, bl, fProxiedPtr)));
       return values;
@@ -795,7 +794,7 @@ private:
       if (theBranchName.empty()) {
          // Try the default branch if possible
          auto df = GetDataFrameChecked();
-         const BranchList &defBl = df->GetDefaultBranches();
+         const BranchVec &defBl = df->GetDefaultBranches();
          if (defBl.size() == 1) {
             theBranchName = defBl[0];
          } else {
@@ -821,7 +820,7 @@ private:
          // and therefore of the TDataFrameAction that contains it: merging of results
          // from different threads is performed in the operation's destructor, at the
          // moment when the TDataFrameAction is deleted by TDataFrameImpl
-         BranchList bl = {theBranchName};
+         BranchVec bl = {theBranchName};
          auto df = thisFrame->GetDataFrameChecked();
          auto xaxis = h->GetXaxis();
          auto hasAxisLimits = !(xaxis->GetXmin() == 0. && xaxis->GetXmax() == 0.);
@@ -849,7 +848,7 @@ private:
          // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
          auto minOp = std::make_shared<Internal::Operations::MinOperation>(minV.get(), nSlots);
          auto minOpLambda = [minOp](unsigned int slot, const BranchType &v) mutable { minOp->Exec(v, slot); };
-         BranchList bl = {theBranchName};
+         BranchVec bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(minOpLambda), Proxied>;
          auto df = thisFrame->GetDataFrameChecked();
          df->Book(std::make_shared<DFA_t>(minOpLambda, bl, thisFrame->fProxiedPtr));
@@ -865,7 +864,7 @@ private:
          // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
          auto maxOp = std::make_shared<Internal::Operations::MaxOperation>(maxV.get(), nSlots);
          auto maxOpLambda = [maxOp](unsigned int slot, const BranchType &v) mutable { maxOp->Exec(v, slot); };
-         BranchList bl = {theBranchName};
+         BranchVec bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(maxOpLambda), Proxied>;
          auto df = thisFrame->GetDataFrameChecked();
          df->Book(std::make_shared<DFA_t>(maxOpLambda, bl, thisFrame->fProxiedPtr));
@@ -881,7 +880,7 @@ private:
          // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
          auto meanOp = std::make_shared<Internal::Operations::MeanOperation>(meanV.get(), nSlots);
          auto meanOpLambda = [meanOp](unsigned int slot, const BranchType &v) mutable { meanOp->Exec(v, slot); };
-         BranchList bl = {theBranchName};
+         BranchVec bl = {theBranchName};
          using DFA_t = Internal::TDataFrameAction<decltype(meanOpLambda), Proxied>;
          auto df = thisFrame->GetDataFrameChecked();
          df->Book(std::make_shared<DFA_t>(meanOpLambda, bl, thisFrame->fProxiedPtr));
@@ -980,8 +979,8 @@ class TDataFrameBranch final : public TDataFrameBranchBase {
 
    const std::string fName;
    F fExpression;
-   const BranchList fBranches;
-   BranchList fTmpBranches;
+   const BranchVec fBranches;
+   BranchVec fTmpBranches;
    std::vector<ROOT::Internal::TVBVec_t> fReaderValues;
    std::vector<std::shared_ptr<RetType_t>> fLastResultPtr;
    std::weak_ptr<TDataFrameImpl> fFirstData;
@@ -989,7 +988,7 @@ class TDataFrameBranch final : public TDataFrameBranchBase {
    std::vector<int> fLastCheckedEntry = {-1};
 
 public:
-   TDataFrameBranch(const std::string &name, F expression, const BranchList &bl, std::shared_ptr<PrevData> pd)
+   TDataFrameBranch(const std::string &name, F expression, const BranchVec &bl, std::shared_ptr<PrevData> pd)
       : fName(name), fExpression(expression), fBranches(bl), fTmpBranches(pd->GetTmpBranches()),
         fFirstData(pd->GetDataFrame()), fPrevData(pd.get())
    {
@@ -1000,7 +999,7 @@ public:
 
    std::weak_ptr<TDataFrameImpl> GetDataFrame() const { return fFirstData; }
 
-   BranchList GetTmpBranches() const { return fTmpBranches; }
+   BranchVec GetTmpBranches() const { return fTmpBranches; }
 
    void BuildReaderValues(TTreeReader &r, unsigned int slot)
    {
@@ -1061,8 +1060,8 @@ class TDataFrameFilter final : public TDataFrameFilterBase {
    using TypeInd_t = typename Internal::TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
 
    FilterF fFilter;
-   const BranchList fBranches;
-   const BranchList fTmpBranches;
+   const BranchVec fBranches;
+   const BranchVec fTmpBranches;
    PrevDataFrame *fPrevData;
    std::weak_ptr<TDataFrameImpl> fFirstData;
    std::vector<Internal::TVBVec_t> fReaderValues = {};
@@ -1070,13 +1069,13 @@ class TDataFrameFilter final : public TDataFrameFilterBase {
    std::vector<int> fLastResult = {true}; // std::vector<bool> cannot be used in a MT context safely
 
 public:
-   TDataFrameFilter(FilterF f, const BranchList &bl, std::shared_ptr<PrevDataFrame> pd)
+   TDataFrameFilter(FilterF f, const BranchVec &bl, std::shared_ptr<PrevDataFrame> pd)
       : fFilter(f), fBranches(bl), fTmpBranches(pd->GetTmpBranches()), fPrevData(pd.get()),
         fFirstData(pd->GetDataFrame()) { }
 
    std::weak_ptr<TDataFrameImpl> GetDataFrame() const { return fFirstData; }
 
-   BranchList GetTmpBranches() const { return fTmpBranches; }
+   BranchVec GetTmpBranches() const { return fTmpBranches; }
 
    TDataFrameFilter(const TDataFrameFilter &) = delete;
 
@@ -1130,10 +1129,10 @@ class TDataFrameImpl {
    std::string fTreeName;
    TDirectory *fDirPtr = nullptr;
    TTree *fTree = nullptr;
-   const BranchList fDefaultBranches;
+   const BranchVec fDefaultBranches;
    // always empty: each object in the chain copies this list from the previous
    // and they must copy an empty list from the base TDataFrameImpl
-   const BranchList fTmpBranches;
+   const BranchVec fTmpBranches;
    unsigned int fNSlots;
    // TDataFrameInterface<TDataFrameImpl> calls SetFirstData to set this to a
    // weak pointer to the TDataFrameImpl object itself
@@ -1141,10 +1140,10 @@ class TDataFrameImpl {
    std::weak_ptr<TDataFrameImpl> fFirstData;
 
 public:
-   TDataFrameImpl(const std::string &treeName, TDirectory *dirPtr, const BranchList &defaultBranches = {})
+   TDataFrameImpl(const std::string &treeName, TDirectory *dirPtr, const BranchVec &defaultBranches = {})
       : fTreeName(treeName), fDirPtr(dirPtr), fDefaultBranches(defaultBranches), fNSlots(ROOT::Internal::GetNSlots()) { }
 
-   TDataFrameImpl(TTree &tree, const BranchList &defaultBranches = {}) : fTree(&tree), fDefaultBranches(defaultBranches), fNSlots(ROOT::Internal::GetNSlots())
+   TDataFrameImpl(TTree &tree, const BranchVec &defaultBranches = {}) : fTree(&tree), fDefaultBranches(defaultBranches), fNSlots(ROOT::Internal::GetNSlots())
    { }
 
    TDataFrameImpl(const TDataFrameImpl &) = delete;
@@ -1228,9 +1227,9 @@ public:
 
    std::weak_ptr<Details::TDataFrameImpl> GetDataFrame() const { return fFirstData; }
 
-   const BranchList &GetDefaultBranches() const { return fDefaultBranches; }
+   const BranchVec &GetDefaultBranches() const { return fDefaultBranches; }
 
-   const BranchList GetTmpBranches() const { return fTmpBranches; }
+   const BranchVec GetTmpBranches() const { return fTmpBranches; }
 
    TTree* GetTree() const {
       if (fTree) {
@@ -1288,14 +1287,14 @@ public:
 namespace ROOT {
 template <typename T>
 TDataFrameInterface<T>::TDataFrameInterface(const std::string &treeName, TDirectory *dirPtr,
-                                            const BranchList &defaultBranches)
+                                            const BranchVec &defaultBranches)
    : fProxiedPtr(std::make_shared<Details::TDataFrameImpl>(treeName, dirPtr, defaultBranches))
 {
    fProxiedPtr->SetFirstData(fProxiedPtr);
 }
 
 template <typename T>
-TDataFrameInterface<T>::TDataFrameInterface(TTree &tree, const BranchList &defaultBranches)
+TDataFrameInterface<T>::TDataFrameInterface(TTree &tree, const BranchVec &defaultBranches)
    : fProxiedPtr(std::make_shared<Details::TDataFrameImpl>(tree, defaultBranches))
 {
    fProxiedPtr->SetFirstData(fProxiedPtr);
