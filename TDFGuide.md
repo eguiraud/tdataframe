@@ -314,7 +314,7 @@ In the following, whenever we say an action "returns" something, we always mean 
    </td>
 <tr>
    <td align="center">
-      Get
+      Take
    </td>
    <td>
       Build a collection of values of a branch.
