@@ -86,16 +86,16 @@ std::function<R(unsigned int, Args...)> AddSlotParameter(F f, TTypeList<Args...>
 }
 
 // compile-time integer sequence generator
-// e.g. calling TGenS<3>::type() instantiates a TSeq<0,1,2>
+// e.g. calling TGenStaticSeq<3>::type() instantiates a TStaticSeq<0,1,2>
 template <int...>
-struct TSeq { };
+struct TStaticSeq { };
 
 template <int N, int... S>
-struct TGenS : TGenS<N - 1, N - 1, S...> { };
+struct TGenStaticSeq : TGenStaticSeq<N - 1, N - 1, S...> { };
 
 template <int... S>
-struct TGenS<0, S...> {
-   using Type_t = TSeq<S...>;
+struct TGenStaticSeq<0, S...> {
+   using Type_t = TStaticSeq<S...>;
 };
 
 template <typename T>
@@ -200,7 +200,7 @@ using TVBVec_t = std::vector<TVBPtr_t>;
 template <int... S, typename... BranchTypes>
 TVBVec_t BuildReaderValues(TTreeReader &r, const BranchVec &bl, const BranchVec &tmpbl,
                            TDFTraitsUtils::TTypeList<BranchTypes...>,
-                           TDFTraitsUtils::TSeq<S...>)
+                           TDFTraitsUtils::TStaticSeq<S...>)
 {
    // isTmpBranch has length bl.size(). Elements are true if the corresponding
    // branch is a "fake" branch created with AddBranch, false if they are
@@ -273,7 +273,7 @@ T &GetBranchValue(TVBPtr_t &readerValues, unsigned int slot, int entry, const st
 template <typename F, typename PrevDataFrame>
 class TDataFrameAction final : public TDataFrameActionBase {
    using BranchTypes_t = typename TDFTraitsUtils::TRemoveFirst<typename TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t>::Types_t;
-   using TypeInd_t = typename TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
+   using TypeInd_t = typename TDFTraitsUtils::TGenStaticSeq<BranchTypes_t::fgSize>::Type_t;
 
    F fAction;
    const BranchVec fBranches;
@@ -312,7 +312,7 @@ public:
 
    template <int... S, typename... BranchTypes>
    void ExecuteActionHelper(unsigned int slot, int entry,
-                            TDFTraitsUtils::TSeq<S...>,
+                            TDFTraitsUtils::TStaticSeq<S...>,
                             TDFTraitsUtils::TTypeList<BranchTypes...>)
    {
       // Take each pointer in tvb, cast it to a pointer to the
@@ -974,7 +974,7 @@ template <typename F, typename PrevData>
 class TDataFrameBranch final : public TDataFrameBranchBase {
    using BranchTypes_t = typename Internal
    ::TDFTraitsUtils::TFunctionTraits<F>::ArgTypes_t;
-   using TypeInd_t = typename Internal::TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
+   using TypeInd_t = typename Internal::TDFTraitsUtils::TGenStaticSeq<BranchTypes_t::fgSize>::Type_t;
    using RetType_t = typename Internal::TDFTraitsUtils::TFunctionTraits<F>::RetType_t;
 
    const std::string fName;
@@ -1036,7 +1036,7 @@ public:
 
    template <int... S, typename... BranchTypes>
    std::shared_ptr<RetType_t> GetValueHelper(Internal::TDFTraitsUtils::TTypeList<BranchTypes...>,
-                                             Internal::TDFTraitsUtils::TSeq<S...>,
+                                             Internal::TDFTraitsUtils::TStaticSeq<S...>,
                                              unsigned int slot, int entry)
    {
       auto valuePtr = std::make_shared<RetType_t>(fExpression(
@@ -1057,7 +1057,7 @@ using FilterBaseVec_t = std::vector<FilterBasePtr_t>;
 template <typename FilterF, typename PrevDataFrame>
 class TDataFrameFilter final : public TDataFrameFilterBase {
    using BranchTypes_t = typename Internal::TDFTraitsUtils::TFunctionTraits<FilterF>::ArgTypes_t;
-   using TypeInd_t = typename Internal::TDFTraitsUtils::TGenS<BranchTypes_t::fgSize>::Type_t;
+   using TypeInd_t = typename Internal::TDFTraitsUtils::TGenStaticSeq<BranchTypes_t::fgSize>::Type_t;
 
    FilterF fFilter;
    const BranchVec fBranches;
@@ -1096,7 +1096,7 @@ public:
 
    template <int... S, typename... BranchTypes>
    bool CheckFilterHelper(Internal::TDFTraitsUtils::TTypeList<BranchTypes...>,
-                          Internal::TDFTraitsUtils::TSeq<S...>,
+                          Internal::TDFTraitsUtils::TStaticSeq<S...>,
                           unsigned int slot, int entry)
    {
       // Take each pointer in tvb, cast it to a pointer to the
