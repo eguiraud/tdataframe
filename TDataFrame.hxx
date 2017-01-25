@@ -162,7 +162,7 @@ class TDataFrameImpl;
 * \tparam T Type of the action result
 *
 * A smart pointer which allows to access the result of a TDataFrame action. The
-* methods of the encapsulated object can be acessed via the arrow operator.
+* methods of the encapsulated object can be accessed via the arrow operator.
 * Upon invocation of the arrow operator or dereferencing (`operator*`), the
 * loop on the events and calculations of all scheduled actions are executed
 * if needed.
@@ -738,7 +738,7 @@ public:
    /// \param[in] bl Names of the branches in input to the producer function.
    ///
    /// Create a temporary branch that will be visible from all subsequent nodes
-   /// of the functional chain. The `experssion` is only evaluated for entries that pass
+   /// of the functional chain. The `expression` is only evaluated for entries that pass
    /// all the preceding filters.
    /// A new variable is created called `name`, accessible as if it was contained
    /// in the dataset from subsequent transformations/actions.
@@ -769,7 +769,7 @@ public:
 
    ////////////////////////////////////////////////////////////////////////////
    /// \brief Execute a user-defined function on each entry (*immediate action*)
-   /// \param[in] f Function, lambda expression, functor class or any other callable object perfoming user defined calculations.
+   /// \param[in] f Function, lambda expression, functor class or any other callable object performing user defined calculations.
    /// \param[in] bl Names of the branches in input to the user function.
    ///
    /// The callable `f` is invoked once per entry. This is an *immediate action*:
@@ -789,7 +789,7 @@ public:
 
    ////////////////////////////////////////////////////////////////////////////
    /// \brief Execute a user-defined function requiring a processing slot index on each entry (*immediate action*)
-   /// \param[in] f Function, lambda expression, functor class or any other callable object perfoming user defined calculations.
+   /// \param[in] f Function, lambda expression, functor class or any other callable object performing user defined calculations.
    /// \param[in] bl Names of the branches in input to the user function.
    ///
    /// Same as `Foreach`, but the user-defined function takes an extra
@@ -891,7 +891,7 @@ public:
    /// the loop on the entries, the histogram is filled. If the axis boundaries are
    /// specified, the histogram (or histograms in the parallel case) are filled. This
    /// latter mode may result in a reduced memory footprint.
-   ///v
+   ///
    /// This action is *lazy*: upon invocation of this method the calculation is
    /// booked but not executed. See TActionResultPtr documentation.
    template <typename T = Double_t>
