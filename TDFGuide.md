@@ -144,7 +144,7 @@ auto h2 = d.Histo("pt_v");
 h1->Draw();       // event loop is run once here
 h2->Draw("SAME"); // no need to run the event loop again
 ```
-`TDataFrame` executes all above actions by **running the event-loop only once**. The trick is that actions are not executed at the moment they are called, but they are **delayed** until the moment one of their results is accessed through the smart pointer. At that time, the even loop is triggered and *all* results are produced simultaneously.
+`TDataFrame` executes all above actions by **running the event-loop only once**. The trick is that actions are not executed at the moment they are called, but they are **lazy**, i.e. delayed until the moment one of their results is accessed through the smart pointer. At that time, the even loop is triggered and *all* results are produced simultaneously.
 
 It is therefore good practice to declare all your filters and actions *before* accessing their results, allowing `TDataFrame` to loop once and produce all results in one go.
 
@@ -284,11 +284,11 @@ Temporary branch values can be persistified by saving them to a new `TTree` usin
 An exception is thrown if the `name` of the new branch is already in use for another branch in the `TTree`.
 
 ## Actions
-### Instant and delayed actions
-Actions can be **instant** or **delayed**. Instant actions are executed as soon as they are called, while delayed actions are executed whenever the object they return is accessed for the first time. As a rule of thumb, all actions with a return value are delayed, the others are instant.
+### Instant and lazy actions
+Actions can be **instant** or **lazy**. Instant actions are executed as soon as they are called, while lazy actions are executed whenever the object they return is accessed for the first time. As a rule of thumb, actions with a return value are lazy, the others are instant.
 <!--One notable exception is `Snapshot` (see the table [below](#overview)).
 
-Whenever an action is executed, all (delayed) actions with the same **range** (see later) are executed within the same event loop.
+Whenever an action is executed, all (lazy) actions with the same **range** (see later) are executed within the same event loop.
 
 ### Ranges (coming soon)
 Ranges of entries can (or must) be specified for all actions. **Only the specified range of entries will be processed** during the event loop.
@@ -302,7 +302,7 @@ In the following, whenever we say an action "returns" something, we always mean 
 <table>
 <tr>
    <td colspan="2" align="center">
-      <b>Delayed actions</b>
+      <b>Lazy actions</b>
    </td>
 </tr>
 <tr>
