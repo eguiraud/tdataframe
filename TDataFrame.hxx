@@ -768,11 +768,11 @@ public:
    }
 
    ////////////////////////////////////////////////////////////////////////////
-   /// \brief Execute a user-defined function on each entry (*immediate action*)
+   /// \brief Execute a user-defined function on each entry (*instant action*)
    /// \param[in] f Function, lambda expression, functor class or any other callable object performing user defined calculations.
    /// \param[in] bl Names of the branches in input to the user function.
    ///
-   /// The callable `f` is invoked once per entry. This is an *immediate action*:
+   /// The callable `f` is invoked once per entry. This is an *instant action*:
    /// upon invocation, an event loop as well as execution of all scheduled actions
    /// is triggered.
    /// Users are responsible for the thread-safety of this callable when executing
@@ -788,7 +788,7 @@ public:
    }
 
    ////////////////////////////////////////////////////////////////////////////
-   /// \brief Execute a user-defined function requiring a processing slot index on each entry (*immediate action*)
+   /// \brief Execute a user-defined function requiring a processing slot index on each entry (*instant action*)
    /// \param[in] f Function, lambda expression, functor class or any other callable object performing user defined calculations.
    /// \param[in] bl Names of the branches in input to the user function.
    ///
