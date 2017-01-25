@@ -1,3 +1,14 @@
+// @(#)root/thread:$Id$
+// Author: Enrico Guiraud, CERN  12/2016
+
+/*************************************************************************
+ * Copyright (C) 1995-2016, Rene Brun and Fons Rademakers.               *
+ * All rights reserved.                                                  *
+ *                                                                       *
+ * For the licensing terms see $ROOTSYS/LICENSE.                         *
+ * For the list of contributors see $ROOTSYS/README/CREDITS.             *
+ *************************************************************************/
+
 #ifndef ROOT_TDATAFRAME
 #define ROOT_TDATAFRAME
 
@@ -145,6 +156,17 @@ class TDataFrameImpl;
 }
 
 /// Smart pointer for the return type of actions
+/**
+* \class ROOT::TActionResultPtr
+* \brief A wrapper around the result of TDataFrame actions able to trigger calculations lazily.
+* \tparam T Type of the action result
+*
+* A smart pointer which allows to access the result of a TDataFrame action. The
+* methods of the encapsulated object can be accessed via the arrow operator.
+* Upon invocation of the arrow operator or dereferencing (`operator*`), the
+* loop on the events and calculations of all scheduled actions are executed
+* if needed.
+*/
 template <typename T>
 class TActionResultPtr {
    using SPT_t = std::shared_ptr<T> ;
@@ -153,25 +175,38 @@ class TActionResultPtr {
    using ShrdPtrBool_t = std::shared_ptr<bool>;
    friend class Details::TDataFrameImpl;
 
-   ShrdPtrBool_t fReadiness = std::make_shared<bool>(false);
-   WPTDFI_t fFirstData;
-   SPT_t fObjPtr;
+   ShrdPtrBool_t fReadiness = std::make_shared<bool>(false); ///< State registered also in the TDataFrameImpl until the event loop is executed
+   WPTDFI_t fFirstData;                                      ///< Original TDataFrame
+   SPT_t fObjPtr;                                            ///< Shared pointer encapsulating the wrapped result
+   /// Triggers the event loop in the TDataFrameImpl instance to which it's associated via the fFirstData
    void TriggerRun();
    TActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
       : fFirstData(firstData), fObjPtr(objPtr), fReadiness(readiness) { }
+   /// Factory to allow to keep the constructor private
    static TActionResultPtr<T> MakeActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
    {
       return TActionResultPtr(objPtr, readiness, firstData);
    }
 public:
    TActionResultPtr() = delete;
+   /// Get the pointer to the encapsulated result.
+   /// Ownership is not transferred to the caller.
+   /// Triggers event loop and execution of all actions booked in the associated TDataFrameImpl.
    T *Get()
    {
       if (!*fReadiness) TriggerRun();
       return fObjPtr.get();
    }
+   /// Get a reference to the encapsulated object.
+   /// Triggers event loop and execution of all actions booked in the associated TDataFrameImpl.
    T &operator*() { return *Get(); }
+   /// Get a pointer to the encapsulated object.
+   /// Ownership is not transferred to the caller.
+   /// Triggers event loop and execution of all actions booked in the associated TDataFrameImpl.
    T *operator->() { return Get(); }
+   /// Get the pointer to the encapsulated result.
+   /// Ownership is not transferred to the caller.
+   /// Does not trigger event loop and execution of all actions booked in the associated TDataFrameImpl.
    T *GetUnchecked() { return fObjPtr.get(); }
 };
 
@@ -236,10 +271,9 @@ void CheckTmpBranch(const std::string& branchName, TTree *treePtr)
    }
 }
 
+/// Returns local BranchVec or default BranchVec according to which one should be used
 const BranchVec &PickBranchVec(unsigned int nArgs, const BranchVec &bl, const BranchVec &defBl)
 {
-   // return local BranchVec or default BranchVec according to which one
-   // should be used
    bool useDefBl = false;
    if (nArgs != bl.size()) {
       if (bl.size() == 0 && nArgs == defBl.size()) {
@@ -637,13 +671,51 @@ class TDataFrameBranch;
 class TDataFrameImpl;
 }
 
+/**
+* \class ROOT::TDataFrameInterface
+* \brief The public interface to the TDataFrame federation of classes: TDataFrameImpl, TDataFrameFilter, TDataFrameBranch
+* \tparam T One of the TDataFrameImpl, TDataFrameFilter, TDataFrameBranch classes. The user never specifies this type manually.
+*/
 template <typename Proxied>
 class TDataFrameInterface {
    template<typename T> friend class TDataFrameInterface;
 public:
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Build the dataframe
+   /// \param[in] treeName Name of the tree contained in the directory
+   /// \param[in] dirPtr TDirectory where the tree is stored, e.g. a TFile.
+   /// \param[in] defaultBranches Collection of default branches.
+   ///
+   /// The default branches are looked at in case no branch is specified in the
+   /// booking of actions or transformations.
    TDataFrameInterface(const std::string &treeName, TDirectory *dirPtr, const BranchVec &defaultBranches = {});
+
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Build the dataframe
+   /// \param[in] tree The tree or chain to be studied.
+   /// \param[in] defaultBranches Collection of default branches.
+   ///
+   /// The default branches are looked at in case no branch is specified in the
+   /// booking of actions or transformations.
    TDataFrameInterface(TTree &tree, const BranchVec &defaultBranches = {});
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Append a filter to the call graph.
+   /// \param[in] f Function, lambda expression, functor class or any other callable object. It must return a `bool` signalling whether the event has passed the selection (true) or not (false).
+   /// \param[in] bl Names of the branches in input to the filter function.
+   ///
+   /// Append a filter node at the point of the call graph corresponding to the
+   /// object this method is called on.
+   /// The callable `f` should not have side-effects (e.g. modification of an
+   /// external or static variable) to ensure correct results when implicit
+   /// multi-threading is active.
+   ///
+   /// TDataFrame only evaluates filters when necessary: if multiple filters
+   /// are chained one after another, they are executed in order and the first
+   /// one returning false causes the event to be discarded.
+   /// Even if multiple actions or transformations depend on the same filter,
+   /// it is executed once per entry. If its result is requested more than
+   /// once, the cached result is served.
    template <typename F>
    TDataFrameInterface<Details::TDataFrameFilter<F, Proxied>> Filter(F f, const BranchVec &bl = {})
    {
@@ -659,9 +731,29 @@ public:
       return tdf_f;
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Creates a temporary branch
+   /// \param[in] name The name of the temporary branch.
+   /// \param[in] expression Function, lambda expression, functor class or any other callable object producing the temporary value. Returns the value that will be assigned to the temporary branch.
+   /// \param[in] bl Names of the branches in input to the producer function.
+   ///
+   /// Create a temporary branch that will be visible from all subsequent nodes
+   /// of the functional chain. The `expression` is only evaluated for entries that pass
+   /// all the preceding filters.
+   /// A new variable is created called `name`, accessible as if it was contained
+   /// in the dataset from subsequent transformations/actions.
+   ///
+   /// Use cases include:
+   ///
+   /// * caching the results of complex calculations for easy and efficient multiple access
+   /// * extraction of quantities of interest from complex objects
+   /// * branch aliasing, i.e. changing the name of a branch
+   ///
+   /// An exception is thrown if the name of the new branch is already in use
+   /// for another branch in the TTree.
    template <typename F>
-   TDataFrameInterface<Details::TDataFrameBranch<F, Proxied>> AddBranch(const std::string &name, F expression,
-                                                                        const BranchVec &bl = {})
+   TDataFrameInterface<Details::TDataFrameBranch<F, Proxied>>
+   AddBranch(const std::string &name, F expression, const BranchVec &bl = {})
    {
       auto df = GetDataFrameChecked();
       ROOT::Internal::CheckTmpBranch(name, df->GetTree());
@@ -675,6 +767,16 @@ public:
       return tdf_b;
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Execute a user-defined function on each entry (*instant action*)
+   /// \param[in] f Function, lambda expression, functor class or any other callable object performing user defined calculations.
+   /// \param[in] bl Names of the branches in input to the user function.
+   ///
+   /// The callable `f` is invoked once per entry. This is an *instant action*:
+   /// upon invocation, an event loop as well as execution of all scheduled actions
+   /// is triggered.
+   /// Users are responsible for the thread-safety of this callable when executing
+   /// with implicit multi-threading enabled (i.e. ROOT::EnableImplicitMT).
    template <typename F>
    void Foreach(F f, const BranchVec &bl = {})
    {
@@ -685,6 +787,21 @@ public:
       ForeachSlot(fWithSlot, bl);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Execute a user-defined function requiring a processing slot index on each entry (*instant action*)
+   /// \param[in] f Function, lambda expression, functor class or any other callable object performing user defined calculations.
+   /// \param[in] bl Names of the branches in input to the user function.
+   ///
+   /// Same as `Foreach`, but the user-defined function takes an extra
+   /// `unsigned int` as its first parameter, the *processing slot index*.
+   /// This *slot index* will be assigned a different value, `0` to `poolSize - 1`,
+   /// for each thread of execution.
+   /// This is meant as a helper in writing thread-safe `Foreach`
+   /// actions when using `TDataFrame` after `ROOT::EnableImplicitMT()`.
+   /// The user-defined processing callable is able to follow different
+   /// *streams of processing* indexed by the first parameter.
+   /// `ForeachSlot` works just as well with single-thread execution: in that
+   /// case `slot` will always be `0`.
    template<typename F>
    void ForeachSlot(F f, const BranchVec &bl = {}) {
       auto df = GetDataFrameChecked();
@@ -696,6 +813,11 @@ public:
       df->Run();
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Return the number of entries processed (*lazy action*)
+   ///
+   /// This action is *lazy*: upon invocation of this method the calculation is
+   /// booked but not executed. See TActionResultPtr documentation.
    TActionResultPtr<unsigned int> Count()
    {
       auto df = GetDataFrameChecked();
@@ -710,6 +832,14 @@ public:
       return c;
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Return a collection of values of a branch (*lazy action*)
+   /// \tparam T The type of the branch.
+   /// \tparam COLL The type of collection used to store the values.
+   /// \param[in] branchName The name of the branch of which the values are to be collected
+   ///
+   /// This action is *lazy*: upon invocation of this method the calculation is
+   /// booked but not executed. See TActionResultPtr documentation.
    template <typename T, typename COLL = std::vector<T>>
    TActionResultPtr<COLL> Take(const std::string &branchName = "")
    {
@@ -727,6 +857,17 @@ public:
       return values;
    }
 
+
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Fill and return a one-dimensional histogram with the values of a branch (*lazy action*)
+   /// \tparam T The type of the branch the values of which are used to fill the histogram.
+   /// \param[in] branchName The name of the branch of which the values are to be collected.
+   /// \param[in] model The model to be copied to build the new return value.
+   ///
+   /// If no branch type is specified, the implementation will try to guess one.
+   /// The returned histogram is independent of the input one.
+   /// This action is *lazy*: upon invocation of this method the calculation is
+   /// booked but not executed. See TActionResultPtr documentation.
    template <typename T = Double_t>
    TActionResultPtr<TH1F> Histo(const std::string &branchName, const TH1F &model)
    {
@@ -736,6 +877,23 @@ public:
       return CreateAction<T, Internal::EActionType::kHisto1D>(theBranchName, h);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Fill and return a one-dimensional histogram with the values of a branch (*lazy action*)
+   /// \tparam T The type of the branch the values of which are used to fill the histogram.
+   /// \param[in] branchName The name of the branch of which the values are to be collected.
+   /// \param[in] nbins The number of bins.
+   /// \param[in] minVal The lower value of the xaxis.
+   /// \param[in] maxVal The upper value of the xaxis.
+   ///
+   /// If no branch type is specified, the implementation will try to guess one.
+   ///
+   /// If no axes boundaries are specified, all entries are buffered: at the end of
+   /// the loop on the entries, the histogram is filled. If the axis boundaries are
+   /// specified, the histogram (or histograms in the parallel case) are filled. This
+   /// latter mode may result in a reduced memory footprint.
+   ///
+   /// This action is *lazy*: upon invocation of this method the calculation is
+   /// booked but not executed. See TActionResultPtr documentation.
    template <typename T = Double_t>
    TActionResultPtr<TH1F> Histo(const std::string &branchName = "", int nBins = 128, Double_t minVal = 0.,
                                 Double_t maxVal = 0.)
@@ -749,6 +907,15 @@ public:
       return CreateAction<T, Internal::EActionType::kHisto1D>(theBranchName, h);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Return the minimum of processed branch values (*lazy action*)
+   /// \tparam T The type of the branch.
+   /// \param[in] branchName The name of the branch to be treated.
+   ///
+   /// If no branch type is specified, the implementation will try to guess one.
+   ///
+   /// This action is *lazy*: upon invocation of this method the calculation is
+   /// booked but not executed. See TActionResultPtr documentation.
    template <typename T = Double_t>
    TActionResultPtr<Double_t> Min(const std::string &branchName = "")
    {
@@ -758,6 +925,15 @@ public:
       return CreateAction<T, Internal::EActionType::kMin>(theBranchName, minV);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Return the maximum of processed branch values (*lazy action*)
+   /// \tparam T The type of the branch.
+   /// \param[in] branchName The name of the branch to be treated.
+   ///
+   /// If no branch type is specified, the implementation will try to guess one.
+   ///
+   /// This action is *lazy*: upon invocation of this method the calculation is
+   /// booked but not executed. See TActionResultPtr documentation.
    template <typename T = Double_t>
    TActionResultPtr<Double_t> Max(const std::string &branchName = "")
    {
@@ -767,6 +943,15 @@ public:
       return CreateAction<T, Internal::EActionType::kMax>(theBranchName, maxV);
    }
 
+   ////////////////////////////////////////////////////////////////////////////
+   /// \brief Return the mean of processed branch values (*lazy action*)
+   /// \tparam T The type of the branch.
+   /// \param[in] branchName The name of the branch to be treated.
+   ///
+   /// If no branch type is specified, the implementation will try to guess one.
+   ///
+   /// This action is *lazy*: upon invocation of this method the calculation is
+   /// booked but not executed. See TActionResultPtr documentation.
    template <typename T = Double_t>
    TActionResultPtr<Double_t> Mean(const std::string &branchName = "")
    {
