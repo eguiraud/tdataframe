@@ -5,7 +5,7 @@ test_foreach regression_invalidref
 all: $(TESTS)
 
 %: %.cxx ../TDataFrame.hxx; \
-   g++ -std=c++11 -g -o $@ $< `root-config --libs --cflags` -lTreePlayer -I ../
+   g++ -Wall -std=c++11 -g -o $@ $< `root-config --libs --cflags` -lTreePlayer -I ../
 
 .PHONY: clean
 clean: ;\
