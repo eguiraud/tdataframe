@@ -94,7 +94,7 @@ void tests(int argc = 1, char** argv = nullptr) {
       ROOT::TDataFrame d(treeName, &f);
       auto sleep = [] () { std::this_thread::sleep_for(std::chrono::microseconds(1)); return true; };
       auto sleepCount = d.Filter(sleep).Count();
-      sleepCount.Get();
+      *sleepCount;
    }
 
    std::cout << "Simple filtering" << std::endl;
