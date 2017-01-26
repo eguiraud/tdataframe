@@ -173,8 +173,8 @@ class TActionResultProxy {
    template<typename V, bool isCont = Internal::TDFTraitsUtils::TIsContainer<V>::fgValue>
    struct TIterationHelper{
       using Iterator_t = int;
-      static Iterator_t GetBegin(const V& ){static_assert(sizeof(V) == 0, "It does not make sense to ask begin for this class.");}
-      static Iterator_t GetEnd(const V& ){static_assert(sizeof(V) == 0, "It does not make sense to ask end for this class.");}
+      void GetBegin(const V& ){static_assert(sizeof(V) == 0, "It does not make sense to ask begin for this class.");}
+      void GetEnd(const V& ){static_assert(sizeof(V) == 0, "It does not make sense to ask end for this class.");}
    };
 
    template<typename V>
@@ -204,7 +204,7 @@ class TActionResultProxy {
       return fObjPtr.get();
    }
    TActionResultProxy(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
-      : fFirstData(firstData), fObjPtr(objPtr), fReadiness(readiness) { }
+      : fReadiness(readiness), fFirstData(firstData), fObjPtr(objPtr) { }
    /// Factory to allow to keep the constructor private
    static TActionResultProxy<T> MakeActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
    {
