@@ -572,51 +572,51 @@ public:
 };
 
 class MinOperation {
-   Double_t *fResultMin;
+   double *fResultMin;
    std::vector<double> fMins;
 
 public:
-   MinOperation(Double_t *minVPtr, unsigned int nSlots)
-      : fResultMin(minVPtr), fMins(nSlots, std::numeric_limits<Double_t>::max()) { }
+   MinOperation(double *minVPtr, unsigned int nSlots)
+      : fResultMin(minVPtr), fMins(nSlots, std::numeric_limits<double>::max()) { }
    template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(T v, unsigned int slot)
    {
-      fMins[slot] = std::min((Double_t)v, fMins[slot]);
+      fMins[slot] = std::min((double)v, fMins[slot]);
    }
    template <typename T, typename std::enable_if<TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(const T &vs, unsigned int slot)
    {
-      for (auto &&v : vs) fMins[slot] = std::min((Double_t)v, fMins[slot]);
+      for (auto &&v : vs) fMins[slot] = std::min((double)v, fMins[slot]);
    }
    ~MinOperation()
    {
-      *fResultMin = std::numeric_limits<Double_t>::max();
+      *fResultMin = std::numeric_limits<double>::max();
       for (auto &m : fMins) *fResultMin = std::min(m, *fResultMin);
    }
 };
 
 class MaxOperation {
-   Double_t *fResultMax;
+   double *fResultMax;
    std::vector<double> fMaxs;
 
 public:
-   MaxOperation(Double_t *maxVPtr, unsigned int nSlots)
-      : fResultMax(maxVPtr), fMaxs(nSlots, std::numeric_limits<Double_t>::min()) { }
+   MaxOperation(double *maxVPtr, unsigned int nSlots)
+      : fResultMax(maxVPtr), fMaxs(nSlots, std::numeric_limits<double>::min()) { }
    template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(T v, unsigned int slot)
    {
-      fMaxs[slot] = std::max((Double_t)v, fMaxs[slot]);
+      fMaxs[slot] = std::max((double)v, fMaxs[slot]);
    }
 
    template <typename T, typename std::enable_if<TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(const T &vs, unsigned int slot)
    {
-      for (auto &&v : vs) fMaxs[slot] = std::max((Double_t)v, fMaxs[slot]);
+      for (auto &&v : vs) fMaxs[slot] = std::max((double)v, fMaxs[slot]);
    }
 
    ~MaxOperation()
    {
-      *fResultMax = std::numeric_limits<Double_t>::min();
+      *fResultMax = std::numeric_limits<double>::min();
       for (auto &m : fMaxs) {
          *fResultMax = std::max(m, *fResultMax);
       }
@@ -624,12 +624,12 @@ public:
 };
 
 class MeanOperation {
-   Double_t *fResultMean;
+   double *fResultMean;
    std::vector<Count_t> fCounts;
    std::vector<double> fSums;
 
 public:
-   MeanOperation(Double_t *meanVPtr, unsigned int nSlots) : fResultMean(meanVPtr), fCounts(nSlots, 0), fSums(nSlots, 0) {}
+   MeanOperation(double *meanVPtr, unsigned int nSlots) : fResultMean(meanVPtr), fCounts(nSlots, 0), fSums(nSlots, 0) {}
    template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(T v, unsigned int slot)
    {
@@ -868,7 +868,7 @@ public:
    /// The returned histogram is independent of the input one.
    /// This action is *lazy*: upon invocation of this method the calculation is
    /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
+   template <typename T = double>
    TActionResultPtr<TH1F> Histo(const std::string &branchName, const TH1F &model)
    {
       auto theBranchName(branchName);
@@ -894,9 +894,9 @@ public:
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
    /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<TH1F> Histo(const std::string &branchName = "", int nBins = 128, Double_t minVal = 0.,
-                                Double_t maxVal = 0.)
+   template <typename T = double>
+   TActionResultPtr<TH1F> Histo(const std::string &branchName = "", int nBins = 128, double minVal = 0.,
+                                double maxVal = 0.)
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "fill the histogram");
@@ -916,8 +916,8 @@ public:
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
    /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<Double_t> Min(const std::string &branchName = "")
+   template <typename T = double>
+   TActionResultPtr<double> Min(const std::string &branchName = "")
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "calculate the minumum");
@@ -934,8 +934,8 @@ public:
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
    /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<Double_t> Max(const std::string &branchName = "")
+   template <typename T = double>
+   TActionResultPtr<double> Max(const std::string &branchName = "")
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "calculate the maximum");
@@ -952,8 +952,8 @@ public:
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
    /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<Double_t> Mean(const std::string &branchName = "")
+   template <typename T = double>
+   TActionResultPtr<double> Mean(const std::string &branchName = "")
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "calculate the mean");
@@ -1088,18 +1088,18 @@ private:
       if (!branch) {
          // temporary branch
          const auto &type_id = df->GetBookedBranch(theBranchName).GetTypeId();
-         if (type_id == typeid(Char_t)) {
-            return SimpleAction<Char_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         if (type_id == typeid(char)) {
+            return SimpleAction<char, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          } else if (type_id == typeid(int)) {
             return SimpleAction<int, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
-         } else if (type_id == typeid(Double_t)) {
-            return SimpleAction<Double_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
-         } else if (type_id == typeid(Double_t)) {
-            return SimpleAction<Double_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
-         } else if (type_id == typeid(std::vector<Double_t>)) {
-            return SimpleAction<std::vector<Double_t>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
-         } else if (type_id == typeid(std::vector<Float_t>)) {
-            return SimpleAction<std::vector<Float_t>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         } else if (type_id == typeid(double)) {
+            return SimpleAction<double, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         } else if (type_id == typeid(double)) {
+            return SimpleAction<double, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         } else if (type_id == typeid(std::vector<double>)) {
+            return SimpleAction<std::vector<double>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         } else if (type_id == typeid(std::vector<float>)) {
+            return SimpleAction<std::vector<float>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
       }
       // real branch
@@ -1108,18 +1108,18 @@ private:
          auto title    = branch->GetTitle();
          auto typeCode = title[strlen(title) - 1];
          if (typeCode == 'B') {
-            return SimpleAction<Char_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+            return SimpleAction<char, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
-         // else if (typeCode == 'b') { return SimpleAction<UChar_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'b') { return SimpleAction<Uchar, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          // else if (typeCode == 'S') { return SimpleAction<Short_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          // else if (typeCode == 's') { return SimpleAction<UShort_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          else if (typeCode == 'I') {
             return SimpleAction<int, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
          // else if (typeCode == 'i') { return SimpleAction<unsigned int , ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
-         // else if (typeCode == 'F') { return SimpleAction<Float_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'F') { return SimpleAction<float, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          else if (typeCode == 'D') {
-            return SimpleAction<Double_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+            return SimpleAction<double, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
          // else if (typeCode == 'L') { return SimpleAction<Long64_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          // else if (typeCode == 'l') { return SimpleAction<ULong64_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
@@ -1129,9 +1129,9 @@ private:
       } else {
          std::string typeName = branchEl->GetTypeName();
          if (typeName == "vector<double>") {
-            return SimpleAction<std::vector<Double_t>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+            return SimpleAction<std::vector<double>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          } else if (typeName == "vector<float>") {
-            return SimpleAction<std::vector<Float_t>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+            return SimpleAction<std::vector<float>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
       }
       return SimpleAction<BranchType, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
