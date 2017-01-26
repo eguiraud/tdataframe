@@ -157,7 +157,7 @@ class TDataFrameImpl;
 
 /// Smart pointer for the return type of actions
 /**
-* \class ROOT::TActionResultPtr
+* \class ROOT::TActionResultProxy
 * \brief A wrapper around the result of TDataFrame actions able to trigger calculations lazily.
 * \tparam T Type of the action result
 *
@@ -168,7 +168,22 @@ class TDataFrameImpl;
 * if needed.
 */
 template <typename T>
-class TActionResultPtr {
+class TActionResultProxy {
+
+   template<typename V, bool isCont = Internal::TDFTraitsUtils::TIsContainer<V>::fgValue>
+   struct TIterationHelper{
+      using Iterator_t = int;
+      static Iterator_t GetBegin(const V& ){static_assert(sizeof(V) == 0, "It does not make sense to ask begin for this class.");}
+      static Iterator_t GetEnd(const V& ){static_assert(sizeof(V) == 0, "It does not make sense to ask end for this class.");}
+   };
+
+   template<typename V>
+   struct TIterationHelper<V,true>{
+      using Iterator_t = decltype(std::begin(std::declval<V>()));
+      static Iterator_t GetBegin(const V& v) {return std::begin(v);};
+      static Iterator_t GetEnd(const V& v) {return std::end(v);};
+   };
+
    using SPT_t = std::shared_ptr<T> ;
    using SPTDFI_t = std::shared_ptr<Details::TDataFrameImpl>;
    using WPTDFI_t = std::weak_ptr<Details::TDataFrameImpl>;
@@ -180,15 +195,6 @@ class TActionResultPtr {
    SPT_t fObjPtr;                                            ///< Shared pointer encapsulating the wrapped result
    /// Triggers the event loop in the TDataFrameImpl instance to which it's associated via the fFirstData
    void TriggerRun();
-   TActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
-      : fFirstData(firstData), fObjPtr(objPtr), fReadiness(readiness) { }
-   /// Factory to allow to keep the constructor private
-   static TActionResultPtr<T> MakeActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
-   {
-      return TActionResultPtr(objPtr, readiness, firstData);
-   }
-public:
-   TActionResultPtr() = delete;
    /// Get the pointer to the encapsulated result.
    /// Ownership is not transferred to the caller.
    /// Triggers event loop and execution of all actions booked in the associated TDataFrameImpl.
@@ -197,6 +203,15 @@ public:
       if (!*fReadiness) TriggerRun();
       return fObjPtr.get();
    }
+   TActionResultProxy(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
+      : fFirstData(firstData), fObjPtr(objPtr), fReadiness(readiness) { }
+   /// Factory to allow to keep the constructor private
+   static TActionResultProxy<T> MakeActionResultPtr(SPT_t objPtr, ShrdPtrBool_t readiness, SPTDFI_t firstData)
+   {
+      return TActionResultProxy(objPtr, readiness, firstData);
+   }
+public:
+   TActionResultProxy() = delete;
    /// Get a reference to the encapsulated object.
    /// Triggers event loop and execution of all actions booked in the associated TDataFrameImpl.
    T &operator*() { return *Get(); }
@@ -204,10 +219,20 @@ public:
    /// Ownership is not transferred to the caller.
    /// Triggers event loop and execution of all actions booked in the associated TDataFrameImpl.
    T *operator->() { return Get(); }
-   /// Get the pointer to the encapsulated result.
-   /// Ownership is not transferred to the caller.
-   /// Does not trigger event loop and execution of all actions booked in the associated TDataFrameImpl.
-   T *GetUnchecked() { return fObjPtr.get(); }
+   /// Return an iterator to the beginning of the contained object if this makes
+   /// sense, throw a compilation error otherwise
+   typename TIterationHelper<T>::Iterator_t begin()
+   {
+      if (!*fReadiness) TriggerRun();
+      return TIterationHelper<T>::GetBegin(*fObjPtr);
+   }
+   /// Return an iterator to the end of the contained object if this makes
+   /// sense, throw a compilation error otherwise
+   typename TIterationHelper<T>::Iterator_t end()
+   {
+      if (!*fReadiness) TriggerRun();
+      return TIterationHelper<T>::GetEnd(*fObjPtr);
+   }
 };
 
 } // end NS ROOT
@@ -572,51 +597,51 @@ public:
 };
 
 class MinOperation {
-   Double_t *fResultMin;
+   double *fResultMin;
    std::vector<double> fMins;
 
 public:
-   MinOperation(Double_t *minVPtr, unsigned int nSlots)
-      : fResultMin(minVPtr), fMins(nSlots, std::numeric_limits<Double_t>::max()) { }
+   MinOperation(double *minVPtr, unsigned int nSlots)
+      : fResultMin(minVPtr), fMins(nSlots, std::numeric_limits<double>::max()) { }
    template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(T v, unsigned int slot)
    {
-      fMins[slot] = std::min((Double_t)v, fMins[slot]);
+      fMins[slot] = std::min((double)v, fMins[slot]);
    }
    template <typename T, typename std::enable_if<TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(const T &vs, unsigned int slot)
    {
-      for (auto &&v : vs) fMins[slot] = std::min((Double_t)v, fMins[slot]);
+      for (auto &&v : vs) fMins[slot] = std::min((double)v, fMins[slot]);
    }
    ~MinOperation()
    {
-      *fResultMin = std::numeric_limits<Double_t>::max();
+      *fResultMin = std::numeric_limits<double>::max();
       for (auto &m : fMins) *fResultMin = std::min(m, *fResultMin);
    }
 };
 
 class MaxOperation {
-   Double_t *fResultMax;
+   double *fResultMax;
    std::vector<double> fMaxs;
 
 public:
-   MaxOperation(Double_t *maxVPtr, unsigned int nSlots)
-      : fResultMax(maxVPtr), fMaxs(nSlots, std::numeric_limits<Double_t>::min()) { }
+   MaxOperation(double *maxVPtr, unsigned int nSlots)
+      : fResultMax(maxVPtr), fMaxs(nSlots, std::numeric_limits<double>::min()) { }
    template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(T v, unsigned int slot)
    {
-      fMaxs[slot] = std::max((Double_t)v, fMaxs[slot]);
+      fMaxs[slot] = std::max((double)v, fMaxs[slot]);
    }
 
    template <typename T, typename std::enable_if<TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(const T &vs, unsigned int slot)
    {
-      for (auto &&v : vs) fMaxs[slot] = std::max((Double_t)v, fMaxs[slot]);
+      for (auto &&v : vs) fMaxs[slot] = std::max((double)v, fMaxs[slot]);
    }
 
    ~MaxOperation()
    {
-      *fResultMax = std::numeric_limits<Double_t>::min();
+      *fResultMax = std::numeric_limits<double>::min();
       for (auto &m : fMaxs) {
          *fResultMax = std::max(m, *fResultMax);
       }
@@ -624,12 +649,12 @@ public:
 };
 
 class MeanOperation {
-   Double_t *fResultMean;
+   double *fResultMean;
    std::vector<Count_t> fCounts;
    std::vector<double> fSums;
 
 public:
-   MeanOperation(Double_t *meanVPtr, unsigned int nSlots) : fResultMean(meanVPtr), fCounts(nSlots, 0), fSums(nSlots, 0) {}
+   MeanOperation(double *meanVPtr, unsigned int nSlots) : fResultMean(meanVPtr), fCounts(nSlots, 0), fSums(nSlots, 0) {}
    template <typename T, typename std::enable_if<!TIsContainer<T>::fgValue, int>::type = 0>
    void Exec(T v, unsigned int slot)
    {
@@ -817,13 +842,14 @@ public:
    /// \brief Return the number of entries processed (*lazy action*)
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
-   /// booked but not executed. See TActionResultPtr documentation.
-   TActionResultPtr<unsigned int> Count()
+   /// booked but not executed. See TActionResultProxy documentation.
+   TActionResultProxy<unsigned int> Count()
    {
       auto df = GetDataFrameChecked();
       unsigned int nSlots = df->GetNSlots();
-      auto c = df->MakeActionResultPtr(std::make_shared<unsigned int>(0));
-      auto cPtr = c.GetUnchecked();
+      auto cShared = std::make_shared<unsigned int>(0);
+      auto c = df->MakeActionResultPtr(cShared);
+      auto cPtr = cShared.get();
       auto cOp = std::make_shared<Internal::Operations::CountOperation>(cPtr, nSlots);
       auto countAction = [cOp](unsigned int slot) mutable { cOp->Exec(slot); };
       BranchVec bl = {};
@@ -839,9 +865,9 @@ public:
    /// \param[in] branchName The name of the branch of which the values are to be collected
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
-   /// booked but not executed. See TActionResultPtr documentation.
+   /// booked but not executed. See TActionResultProxy documentation.
    template <typename T, typename COLL = std::vector<T>>
-   TActionResultPtr<COLL> Take(const std::string &branchName = "")
+   TActionResultProxy<COLL> Take(const std::string &branchName = "")
    {
       auto df = GetDataFrameChecked();
       unsigned int nSlots = df->GetNSlots();
@@ -867,9 +893,9 @@ public:
    /// If no branch type is specified, the implementation will try to guess one.
    /// The returned histogram is independent of the input one.
    /// This action is *lazy*: upon invocation of this method the calculation is
-   /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<TH1F> Histo(const std::string &branchName, const TH1F &model)
+   /// booked but not executed. See TActionResultProxy documentation.
+   template <typename T = double>
+   TActionResultProxy<TH1F> Histo(const std::string &branchName, const TH1F &model)
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "fill the histogram");
@@ -893,10 +919,10 @@ public:
    /// latter mode may result in a reduced memory footprint.
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
-   /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<TH1F> Histo(const std::string &branchName = "", int nBins = 128, Double_t minVal = 0.,
-                                Double_t maxVal = 0.)
+   /// booked but not executed. See TActionResultProxy documentation.
+   template <typename T = double>
+   TActionResultProxy<TH1F> Histo(const std::string &branchName = "", int nBins = 128, double minVal = 0.,
+                                double maxVal = 0.)
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "fill the histogram");
@@ -915,9 +941,9 @@ public:
    /// If no branch type is specified, the implementation will try to guess one.
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
-   /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<Double_t> Min(const std::string &branchName = "")
+   /// booked but not executed. See TActionResultProxy documentation.
+   template <typename T = double>
+   TActionResultProxy<double> Min(const std::string &branchName = "")
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "calculate the minumum");
@@ -933,9 +959,9 @@ public:
    /// If no branch type is specified, the implementation will try to guess one.
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
-   /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<Double_t> Max(const std::string &branchName = "")
+   /// booked but not executed. See TActionResultProxy documentation.
+   template <typename T = double>
+   TActionResultProxy<double> Max(const std::string &branchName = "")
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "calculate the maximum");
@@ -951,9 +977,9 @@ public:
    /// If no branch type is specified, the implementation will try to guess one.
    ///
    /// This action is *lazy*: upon invocation of this method the calculation is
-   /// booked but not executed. See TActionResultPtr documentation.
-   template <typename T = Double_t>
-   TActionResultPtr<Double_t> Mean(const std::string &branchName = "")
+   /// booked but not executed. See TActionResultProxy documentation.
+   template <typename T = double>
+   TActionResultProxy<double> Mean(const std::string &branchName = "")
    {
       auto theBranchName(branchName);
       GetDefaultBranchName(theBranchName, "calculate the mean");
@@ -998,7 +1024,7 @@ private:
 
    template <typename BranchType, typename ThisType>
    struct SimpleAction<BranchType, TH1F, Internal::EActionType::kHisto1D, ThisType> {
-      static TActionResultPtr<TH1F> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
+      static TActionResultProxy<TH1F> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                  std::shared_ptr<TH1F> h, unsigned int nSlots)
       {
          // we use a shared_ptr so that the operation has the same scope of the lambda
@@ -1027,10 +1053,10 @@ private:
 
    template <typename BranchType, typename ThisType, typename ActionResultType>
    struct SimpleAction<BranchType, ActionResultType, Internal::EActionType::kMin, ThisType> {
-      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
+      static TActionResultProxy<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                              std::shared_ptr<ActionResultType> minV, unsigned int nSlots)
       {
-         // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
+         // see "TActionResultProxy<TH1F> BuildAndBook" for why this is a shared_ptr
          auto minOp = std::make_shared<Internal::Operations::MinOperation>(minV.get(), nSlots);
          auto minOpLambda = [minOp](unsigned int slot, const BranchType &v) mutable { minOp->Exec(v, slot); };
          BranchVec bl = {theBranchName};
@@ -1043,10 +1069,10 @@ private:
 
    template <typename BranchType, typename ThisType, typename ActionResultType>
    struct SimpleAction<BranchType, ActionResultType, Internal::EActionType::kMax, ThisType> {
-      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
+      static TActionResultProxy<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                              std::shared_ptr<ActionResultType> maxV, unsigned int nSlots)
       {
-         // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
+         // see "TActionResultProxy<TH1F> BuildAndBook" for why this is a shared_ptr
          auto maxOp = std::make_shared<Internal::Operations::MaxOperation>(maxV.get(), nSlots);
          auto maxOpLambda = [maxOp](unsigned int slot, const BranchType &v) mutable { maxOp->Exec(v, slot); };
          BranchVec bl = {theBranchName};
@@ -1059,10 +1085,10 @@ private:
 
    template <typename BranchType, typename ThisType, typename ActionResultType>
    struct SimpleAction<BranchType, ActionResultType, Internal::EActionType::kMean, ThisType> {
-      static TActionResultPtr<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
+      static TActionResultProxy<ActionResultType> BuildAndBook(ThisType thisFrame, const std::string &theBranchName,
                                                              std::shared_ptr<ActionResultType> meanV, unsigned int nSlots)
       {
-         // see "TActionResultPtr<TH1F> BuildAndBook" for why this is a shared_ptr
+         // see "TActionResultProxy<TH1F> BuildAndBook" for why this is a shared_ptr
          auto meanOp = std::make_shared<Internal::Operations::MeanOperation>(meanV.get(), nSlots);
          auto meanOpLambda = [meanOp](unsigned int slot, const BranchType &v) mutable { meanOp->Exec(v, slot); };
          BranchVec bl = {theBranchName};
@@ -1074,7 +1100,7 @@ private:
    };
 
    template <typename BranchType, Internal::EActionType ActionType, typename ActionResultType>
-   TActionResultPtr<ActionResultType> CreateAction(const std::string & theBranchName,
+   TActionResultProxy<ActionResultType> CreateAction(const std::string & theBranchName,
                                                    std::shared_ptr<ActionResultType> r)
    {
       // More types can be added at will at the cost of some compilation time and size of binaries.
@@ -1088,18 +1114,18 @@ private:
       if (!branch) {
          // temporary branch
          const auto &type_id = df->GetBookedBranch(theBranchName).GetTypeId();
-         if (type_id == typeid(Char_t)) {
-            return SimpleAction<Char_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         if (type_id == typeid(char)) {
+            return SimpleAction<char, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          } else if (type_id == typeid(int)) {
             return SimpleAction<int, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
-         } else if (type_id == typeid(Double_t)) {
-            return SimpleAction<Double_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
-         } else if (type_id == typeid(Double_t)) {
-            return SimpleAction<Double_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
-         } else if (type_id == typeid(std::vector<Double_t>)) {
-            return SimpleAction<std::vector<Double_t>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
-         } else if (type_id == typeid(std::vector<Float_t>)) {
-            return SimpleAction<std::vector<Float_t>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         } else if (type_id == typeid(double)) {
+            return SimpleAction<double, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         } else if (type_id == typeid(double)) {
+            return SimpleAction<double, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         } else if (type_id == typeid(std::vector<double>)) {
+            return SimpleAction<std::vector<double>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+         } else if (type_id == typeid(std::vector<float>)) {
+            return SimpleAction<std::vector<float>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
       }
       // real branch
@@ -1108,18 +1134,18 @@ private:
          auto title    = branch->GetTitle();
          auto typeCode = title[strlen(title) - 1];
          if (typeCode == 'B') {
-            return SimpleAction<Char_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+            return SimpleAction<char, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
-         // else if (typeCode == 'b') { return SimpleAction<UChar_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'b') { return SimpleAction<Uchar, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          // else if (typeCode == 'S') { return SimpleAction<Short_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          // else if (typeCode == 's') { return SimpleAction<UShort_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          else if (typeCode == 'I') {
             return SimpleAction<int, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
          // else if (typeCode == 'i') { return SimpleAction<unsigned int , ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
-         // else if (typeCode == 'F') { return SimpleAction<Float_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
+         // else if (typeCode == 'F') { return SimpleAction<float, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          else if (typeCode == 'D') {
-            return SimpleAction<Double_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+            return SimpleAction<double, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
          // else if (typeCode == 'L') { return SimpleAction<Long64_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
          // else if (typeCode == 'l') { return SimpleAction<ULong64_t, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots); }
@@ -1129,9 +1155,9 @@ private:
       } else {
          std::string typeName = branchEl->GetTypeName();
          if (typeName == "vector<double>") {
-            return SimpleAction<std::vector<Double_t>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+            return SimpleAction<std::vector<double>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          } else if (typeName == "vector<float>") {
-            return SimpleAction<std::vector<Float_t>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
+            return SimpleAction<std::vector<float>, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
          }
       }
       return SimpleAction<BranchType, ART_t, at, TT_t>::BuildAndBook(this, theBranchName, r, nSlots);
@@ -1453,12 +1479,12 @@ public:
    unsigned int GetNSlots() {return fNSlots;}
 
    template<typename T>
-   TActionResultPtr<T> MakeActionResultPtr(std::shared_ptr<T> r)
+   TActionResultProxy<T> MakeActionResultPtr(std::shared_ptr<T> r)
    {
       auto readiness = std::make_shared<bool>(false);
       // since fFirstData is a weak_ptr to `this`, we are sure the lock succeeds
       auto df = fFirstData.lock();
-      auto resPtr = TActionResultPtr<T>::MakeActionResultPtr(r, readiness, df);
+      auto resPtr = TActionResultProxy<T>::MakeActionResultPtr(r, readiness, df);
       fResPtrsReadiness.emplace_back(readiness);
       return resPtr;
    }
@@ -1486,7 +1512,7 @@ TDataFrameInterface<T>::TDataFrameInterface(TTree &tree, const BranchVec &defaul
 }
 
 template<typename T>
-void TActionResultPtr<T>::TriggerRun()
+void TActionResultProxy<T>::TriggerRun()
 {
    auto df = fFirstData.lock();
    if (!df) {

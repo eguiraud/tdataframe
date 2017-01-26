@@ -141,7 +141,7 @@ int main() {
    auto r6 = d6.AddBranch("iseven", [](int b2) { return b2 % 2 == 0; }, {"b2"})
                .Filter([](bool iseven) { return iseven; }, {"iseven"})
                .Count();
-   auto c6v = *r6.Get();
+   auto c6v = *r6;
    std::cout << c6v << std::endl;
    CheckRes(c6v, 10U, "AddBranch");
 
@@ -155,7 +155,7 @@ int main() {
                     return sum; });
    auto c7 = dd7.Count();
    auto h7 = dd7.Histo("ptsum");
-   auto c7v = *c7.Get();
+   auto c7v = *c7;
    CheckRes(c7v, 10U, "AddBranch complicated");
    std::cout << "AddBranch Histo entries: " << h7->GetEntries() << std::endl;
    std::cout << "AddBranch Histo mean: " << h7->GetMean() << std::endl;
@@ -201,7 +201,7 @@ int main() {
    auto b2List = dd9.Take<int>("b2");
    auto ptsumVec = dd9.Take<double, std::vector<double>>("ptsum");
 
-   for (auto& v : *b2List) {
+   for (auto& v : b2List) { // Test also the iteration without dereferencing
       std::cout << v << std::endl;
    }
 
