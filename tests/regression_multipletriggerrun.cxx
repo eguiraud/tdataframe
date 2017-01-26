@@ -25,11 +25,11 @@ int main() {
    auto sentinel = []() { std::cout << "filter called" << std::endl; return true; };
    auto f1 = d.Filter(sentinel, {});
    auto m1 = f1.Min();
-   auto trigger1 = *m1;
+   *m1;
    std::cout << "end first run" << std::endl;
    auto f2 = d.Filter(sentinel, {});
    auto dummy = f2.Max();
-   trigger1 = *m1; // this should NOT cause a second printing of "filter called"
+   *m1; // this should NOT cause a second printing of "filter called"
 
    return 0;
 }
