@@ -17,7 +17,7 @@
 #include "TH1F.h" // For Histo actions
 #include "TROOT.h" // IsImplicitMTEnabled, GetImplicitMTPoolSize
 #include "ROOT/TSpinMutex.hxx"
-#include "ROOT/TTreeProcessor.hxx"
+#include "ROOT/TTreeProcessorMT.hxx"
 #include "TTreeReader.h"
 #include "TTreeReaderValue.h"
 
@@ -1365,7 +1365,7 @@ public:
       if (ROOT::IsImplicitMTEnabled()) {
          const auto fileName = fTree ? static_cast<TFile *>(fTree->GetCurrentFile())->GetName() : fDirPtr->GetName();
          const std::string    treeName = fTree ? fTree->GetName() : fTreeName;
-         ROOT::TTreeProcessor tp(fileName, treeName);
+         ROOT::TTreeProcessorMT tp(fileName, treeName);
          ROOT::TSpinMutex     slotMutex;
          std::map<std::thread::id, unsigned int> slotMap;
          unsigned int globalSlotIndex = 0;
