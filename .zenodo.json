@@ -1,0 +1,54 @@
+{
+    "doi": "10.5281/zenodo.260230", 
+    "links": {
+        "doi": "https://doi.org/10.5281/zenodo.260230", 
+        "badge": "https://zenodo.org/badge/doi/10.5281/zenodo.260230.svg"
+    }, 
+    "created": "2017-01-27T00:14:32.465882+00:00", 
+    "title": "TDataFrame: functional chains for ROOT data analyses", 
+    "modified": "2017-01-27T00:14:34.469008+00:00", 
+    "submitted": true, 
+    "record_id": 260230, 
+    "state": "done", 
+    "doi_url": "https://doi.org/10.5281/zenodo.260230", 
+    "owner": 27327, 
+    "metadata": {
+        "doi": "10.5281/zenodo.260230", 
+        "description": "<p><code>TDataFrame</code> is a simple and yet powerful way to perform ROOT data analyses.\nIt provides great flexibility in the actions that can be performed inside the event-loop, expressed in a concise declarative syntax that fully encourages usage of modern C++. Transparent access to multi-thread parallelism makes <code>TDataFrame</code> a viable option for quick data explorations, as well as an expressive and high-level tool for more complex analyses.</p>\n<p>v1.0 comes with a satisfying first set of features, a user guide, Doxygen docs for the user interface and many ideas for future enhancements. A comprehensive suite of tests augmented by static analysis scans guarantees the stability of the software.</p>", 
+        "license": "other-open", 
+        "title": "TDataFrame: functional chains for ROOT data analyses", 
+        "upload_type": "software", 
+        "prereserve_doi": {
+            "doi": "10.5281/zenodo.260230", 
+            "recid": 260230
+        }, 
+        "communities": [
+            {
+                "identifier": "zenodo"
+            }
+        ], 
+        "publication_date": "2017-01-27", 
+        "creators": [
+            {
+                "affiliation": "CERN", 
+                "name": "Enrico Guiraud"
+            }, 
+            {
+                "affiliation": "CERN", 
+                "name": "Axel Naumann"
+            },
+            {
+                "affiliation": "CERN", 
+                "name": "Danilo Piparo"
+            } 
+        ], 
+        "access_right": "open", 
+        "related_identifiers": [
+            {
+                "scheme": "url", 
+                "identifier": "https://github.com/bluehood/tdataframe/tree/v1.0", 
+                "relation": "isSupplementTo"
+            }
+        ]
+    }
+}
