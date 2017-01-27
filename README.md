@@ -1,4 +1,5 @@
 # Functional chains for ROOT data analyses
+[![DOI](https://zenodo.org/badge/76344887.svg)](https://zenodo.org/badge/latestdoi/76344887)
 <a href="https://scan.coverity.com/projects/bluehood-tdataframe">
   <img alt="Coverity Scan Build Status"
        src="https://scan.coverity.com/projects/11179/badge.svg"/>
