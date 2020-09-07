@@ -16,4 +16,4 @@ d.Filter(isNeg, {"theta"}).Foreach(fill, {"pt_x", "pt_y"});
 ```
 No need for TSelectors or TTreeReader loops anymore. As a huge plus, parallelisation, caching and other optimisations are performed transparently or requiring only minimal action on the user's part.
 
-**NB** This project is now part of [ROOT](https://github.com/root-mirror/root) and an up-to-date user guide can be found [here](https://root.cern.ch/doc/master/classROOT_1_1Experimental_1_1TDataFrame.html).
+**NB** This project is now part of [ROOT](https://github.com/root-mirror/root) and an up-to-date user guide can be found [here](https://root.cern/manual/data_frame/).
